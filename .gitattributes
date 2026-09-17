@@ -1,0 +1,21 @@
+# Satir sonlarini her makinede ayni tut: depoda ve calisma agacinda daima LF.
+# Boylece Windows/Linux/macOS arasinda gidip gelirken "tum dosya degismis"
+# gorunen sahte diff'ler olusmaz. Her gelistiricinin core.autocrlf ayarina
+# bagli kalmaktansa kurali depoya yaziyoruz.
+* text=auto eol=lf
+
+# Kimya dosyalari satir tabanli MDL metin bicimidir — sutun hizalari onemli,
+# ama yine de metin olarak islenmeli.
+*.mol text
+*.sdf text
+
+# Ikili dosyalara dokunma (RDKit'in WASM'i normalde .gitignore'da, ama
+# birisi vendor ederse bozulmasin). `binary` = -text -diff -merge; ustteki
+# `*` kuralindan miras kalan eol=lf bunlarda etkisiz kalir, cunku eol
+# yalnizca text set ya da auto oldugunda uygulanir.
+*.wasm binary
+*.png  binary
+*.jpg  binary
+*.ico  binary
+*.woff binary
+*.woff2 binary
