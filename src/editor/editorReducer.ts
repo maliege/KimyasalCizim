@@ -26,10 +26,16 @@ export type EditorState = {
   templateId: string;
   /** Secili fonksiyonel grup */
   groupId: string;
+  /** Son secilen elementler (en yeni basta) — periyodik tabloyu tekrar
+   *  acmadan aralarinda gecis yapabilmek icin */
+  recentElements: string[];
   selectedAtoms: string[];
   /** Kopyalanan parca — yapistirmaya hazir */
   clipboard: Molecule | null;
 };
+
+/** Son kullanilanlar listesinde tutulacak element sayisi. */
+const RECENT_LIMIT = 5;
 
 export const initialEditorState: EditorState = {
   molecule: emptyMolecule(),
@@ -40,6 +46,7 @@ export const initialEditorState: EditorState = {
   bondOrder: 1,
   templateId: 'benzene',
   groupId: 'carboxyl',
+  recentElements: [],
   selectedAtoms: [],
   clipboard: null,
 };
@@ -131,7 +138,15 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       return { ...state, tool: action.tool };
     case 'setElement':
       // Element secmek dogal olarak atom aracina gecmek demek.
-      return { ...state, element: action.element, tool: 'atom' };
+      return {
+        ...state,
+        element: action.element,
+        tool: 'atom',
+        recentElements: [
+          action.element,
+          ...state.recentElements.filter((e) => e !== action.element),
+        ].slice(0, RECENT_LIMIT),
+      };
     case 'setBondOrder':
       return { ...state, bondOrder: action.order, tool: 'bond' };
     case 'setTemplate':

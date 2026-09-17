@@ -8,19 +8,27 @@ import type { Atom, Molecule } from './types';
  */
 const VALENCES: Record<string, number[]> = {
   H: [1],
-  B: [3],
-  C: [4],
-  N: [3],
-  O: [2],
-  F: [1],
-  Si: [4],
-  P: [3, 5],
-  S: [2, 4, 6],
-  Cl: [1],
-  Se: [2, 4, 6],
-  Br: [1],
-  I: [1, 3, 5, 7],
+  // Soy gazlar bag yapmaz; ortuk hidrojen gosterilmemeli.
+  He: [0], Ne: [0], Ar: [0], Kr: [0], Xe: [0], Rn: [0],
+  // 1. ve 2. grup
+  Li: [1], Na: [1], K: [1], Rb: [1], Cs: [1],
+  Be: [2], Mg: [2], Ca: [2], Sr: [2], Ba: [2],
+  // 13. grup
+  B: [3], Al: [3], Ga: [3], In: [3], Tl: [1, 3],
+  // 14. grup
+  C: [4], Si: [4], Ge: [4], Sn: [2, 4], Pb: [2, 4],
+  // 15. grup
+  N: [3], P: [3, 5], As: [3, 5], Sb: [3, 5], Bi: [3, 5],
+  // 16. grup
+  O: [2], S: [2, 4, 6], Se: [2, 4, 6], Te: [2, 4, 6], Po: [2, 4, 6],
+  // 17. grup
+  F: [1], Cl: [1], Br: [1], I: [1, 3, 5, 7], At: [1],
 };
+
+// Gecis metalleri bilerek disarida: valanslari degisken oldugu icin ortuk
+// hidrojen uydurmak yaniltici olur. hasKnownValence onlar icin false doner,
+// yani "Fe" cizildiginde hidrojen eklenmez — organometalik yapilarda
+// istenen davranis budur.
 
 /** Elementin bilinen bir valansi var mi? Yoksa H gosterilmez. */
 export const hasKnownValence = (element: string): boolean => element in VALENCES;

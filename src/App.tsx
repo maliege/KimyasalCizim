@@ -1,26 +1,15 @@
 import { useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState } from 'react';
 import Canvas from './editor/Canvas';
 import { editorReducer, initialEditorState } from './editor/editorReducer';
-import type { EditorState, ToolId } from './editor/editorReducer';
+import type { EditorState } from './editor/editorReducer';
 import { loadMolecule, saveMolecule } from './editor/persistence';
 import { DEFAULT_VIEWPORT, fitTo, zoomAt } from './editor/viewport';
 import type { Viewport } from './editor/viewport';
 import Toolbar from './panels/Toolbar';
 import InfoPanel from './panels/InfoPanel';
 import { useMoleculeInfo } from './rdkit/useMoleculeInfo';
+import { resolveKey } from './editor/keymap';
 import type { Molecule } from './model/types';
-
-/** Klavye kisayolu -> arac eslemesi */
-const TOOL_KEYS: Record<string, ToolId> = {
-  s: 'select',
-  b: 'bond',
-  a: 'atom',
-  e: 'erase',
-  t: 'template',
-  g: 'group',
-  w: 'wedge',
-  h: 'hash',
-};
 
 /** Kaydetmeden once beklenen sure — her fare hareketinde diske yazmayalim. */
 const SAVE_DEBOUNCE_MS = 400;
@@ -70,11 +59,17 @@ export default function App() {
     setViewport(fitTo(state.molecule, size.width, size.height));
   }, [state.molecule, size]);
 
-  // Geri yuklenen cizim ilk olcumden sonra tuvale oturtulur.
-  const fittedOnce = useRef(false);
+  // Geri yuklenen cizim, tuval olculur olculmez ekrana oturtulur.
+  //
+  // Bu yalniz *acilista* kayit varsa calismali. useRef'in baslangic degeri
+  // sadece ilk render'da kullanilir, yani bu bayrak "mount aninda molekul
+  // var miydi" sorusunu dondurur. Bayragi "henuz sigdirmadik" diye kurmak
+  // hataliydi: bos tuvalde kosul saglanmiyor, sonra ilk atomu koyunca efekt
+  // atesleniyor ve gorunum elin altinda kayiyordu.
+  const needsInitialFit = useRef(state.molecule.atoms.length > 0);
   useEffect(() => {
-    if (fittedOnce.current || state.molecule.atoms.length === 0 || size.width <= 1) return;
-    fittedOnce.current = true;
+    if (!needsInitialFit.current || size.width <= 1) return;
+    needsInitialFit.current = false;
     setViewport(fitTo(state.molecule, size.width, size.height));
   }, [state.molecule, size]);
 
@@ -124,15 +119,9 @@ export default function App() {
         return;
       }
 
-      const tool = TOOL_KEYS[e.key.toLowerCase()];
-      if (tool) {
-        dispatch({ type: 'setTool', tool });
-        return;
-      }
-      // Buyuk harfle yazilan element simgeleri dogrudan secilsin (C, N, O…)
-      if (/^[A-Z]$/.test(e.key)) {
-        dispatch({ type: 'setElement', element: e.key });
-      }
+      const action = resolveKey(e.key);
+      if (action.kind === 'tool') dispatch({ type: 'setTool', tool: action.tool });
+      else if (action.kind === 'element') dispatch({ type: 'setElement', element: action.element });
     }
 
     window.addEventListener('keydown', onKeyDown);

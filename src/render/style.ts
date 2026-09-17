@@ -3,20 +3,39 @@ import { bondsOf, getAtom, neighborsOf } from '../model/molecule';
 import { angleBetween } from '../model/geometry';
 import type { Atom, Molecule } from '../model/types';
 
-/** CPK'ya yakin element renkleri. */
+/**
+ * CPK/Jmol'e yakin element renkleri.
+ *
+ * Yalniz sik cizilen elementler listelenir; geri kalan her sey nötr griye
+ * duser. Amac 118 rengi tamamlamak degil, yapiya bakinca heteroatomlari
+ * ayirt edebilmek.
+ */
 const ELEMENT_COLORS: Record<string, string> = {
+  // Organik cekirdek
   C: '#1c2029',
   H: '#4b5563',
   N: '#2050d0',
   O: '#d92020',
   S: '#c8a000',
   P: '#e07000',
+  B: '#c08080',
+  Si: '#907050',
+  Se: '#9a6a00',
+  // Halojenler
   F: '#28a05a',
   Cl: '#28a05a',
   Br: '#8b3a1a',
   I: '#7028c0',
-  B: '#c08080',
-  Si: '#907050',
+  At: '#754f45',
+  // Alkali ve toprak alkali
+  Li: '#8c4ad4', Na: '#8c4ad4', K: '#7a34b8', Rb: '#7a34b8', Cs: '#6b2aa0',
+  Mg: '#3f8f00', Ca: '#2f8000', Sr: '#2f8000', Ba: '#217000',
+  // Sik gecen metaller
+  Al: '#96908c', Fe: '#b8501f', Cu: '#a86a2a', Zn: '#5f6486', Ni: '#3f8f5a',
+  Mn: '#8f4fa8', Cr: '#5f7f9f', Co: '#4a6fb0', Ti: '#96999c', Ag: '#8c8c99',
+  Au: '#b08f28', Pt: '#8f9199', Hg: '#8f7f99', Pb: '#4f5560', Sn: '#67707a',
+  // Soy gazlar
+  He: '#5fa8b8', Ne: '#4f9ab8', Ar: '#4a90b0', Kr: '#3f84a8', Xe: '#3878a0',
 };
 
 export const elementColor = (element: string): string => ELEMENT_COLORS[element] ?? '#3f3f46';

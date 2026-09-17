@@ -21,6 +21,7 @@ npm run dev     # http://localhost:5173
 | Serbest açı | Sürüklerken **Shift** (varsayılan: 30°'ye yakalanır) |
 | Bağ derecesi | Bağa tıklayın (tekli → ikili → üçlü) |
 | Element değiştirme | Paletten element seçip atoma tıklayın |
+| **Tüm elementler** | Palette «Tümü…» → periyodik tablo (118 element). Seçtikleriniz palete kısayol olarak eklenir |
 | **Fonksiyonel grup** | COOH/OH/NH₂/NO₂/C≡N/SO₃H/fenil… seçip bir atoma tıklayın |
 | Halka ekleme | Halka seçin; boş alana, bir **atoma** (spiro) veya bir **bağa** (kaynaşır) tıklayın |
 | Atom taşıma | «Seç ve taşı» ile sürükleyin; başka atomun üstüne bırakınca birleşir |
@@ -32,9 +33,20 @@ npm run dev     # http://localhost:5173
 | Düzenle | Koordinatları RDKit'e yeniden ürettirir |
 | Geri / ileri | Ctrl+Z, Ctrl+Y |
 
-Klavye: `b` bağ, `a` atom, `s` seç, `e` sil, `t` halka, `g` grup, `w` kama, `h` kesikli.
-`Ctrl+A` tümünü seç, `Ctrl+C`/`Ctrl+V` kopyala-yapıştır, `Delete` seçimi sil, `Esc` seçimi bırak.
-Büyük harfle yazılan element simgeleri (C, N, O…) doğrudan seçilir.
+**Klavye — küçük harf araç, BÜYÜK harf element:**
+
+- `b` bağ · `a` atom · `s` seç · `e` sil · `t` halka · `g` grup · `w` kama · `h` kesikli
+- `C`, `N`, `O`, `S`, `W`… tek harfli element simgeleri (iki harfliler palet/tablodan)
+- `Ctrl+A` tümünü seç · `Ctrl+C`/`Ctrl+V` kopyala-yapıştır · `Delete` seçimi sil · `Esc` bırak
+
+Bu ayrım zorunlu: `w` kama aracı ama `W` tungsten; aynı çakışma `b`/`B`, `s`/`S`,
+`h`/`H` için de geçerli.
+
+### Değerlik ve elementler
+
+Ana grup elementlerinin değerliği biliniyor, hidrojenleri otomatik hesaplanıyor.
+**Geçiş metallerinde hesaplanmıyor** — değerlikleri değişken olduğu için hidrojen
+uydurmak yanıltıcı olurdu; organometalik yapılarda istenen davranış budur.
 
 Çizim **tarayıcıda otomatik saklanır** — sekmeyi kapatıp geri dönünce kaldığınız yerden devam edersiniz.
 

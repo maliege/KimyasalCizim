@@ -1,9 +1,12 @@
+import { useState } from 'react';
 import { TEMPLATES } from '../model/templates';
 import { GROUPS } from '../model/groups';
+import { elementName } from '../model/elements';
 import { canRedo, canUndo } from '../editor/editorReducer';
 import type { EditorAction, EditorState, ToolId } from '../editor/editorReducer';
 import type { BondOrder } from '../model/types';
 import { elementColor } from '../render/style';
+import ElementPicker from './ElementPicker';
 
 type Props = {
   state: EditorState;
@@ -30,6 +33,11 @@ const BOND_ORDERS: { order: BondOrder; label: string; hint: string }[] = [
 const ELEMENTS = ['C', 'N', 'O', 'S', 'P', 'F', 'Cl', 'Br', 'I', 'H'];
 
 export default function Toolbar({ state, dispatch, onZoom, onFit }: Props) {
+  const [pickerOpen, setPickerOpen] = useState(false);
+
+  // Hizli palette zaten bulunanlari son kullanilanlarda tekrarlamaya gerek yok.
+  const recent = state.recentElements.filter((e) => !ELEMENTS.includes(e));
+
   return (
     <aside style={styles.panel}>
       <Section title="Bağ">
@@ -52,15 +60,46 @@ export default function Toolbar({ state, dispatch, onZoom, onFit }: Props) {
           {ELEMENTS.map((element) => (
             <Button
               key={element}
-              title={`${element} yerleştir`}
+              title={`${elementName(element)} yerleştir`}
               active={state.tool === 'atom' && state.element === element}
               onClick={() => dispatch({ type: 'setElement', element })}
             >
               <span style={{ color: elementColor(element), fontWeight: 600 }}>{element}</span>
             </Button>
           ))}
+
+          {recent.map((element) => (
+            <Button
+              key={element}
+              title={`${elementName(element)} yerleştir (son kullanılan)`}
+              active={state.tool === 'atom' && state.element === element}
+              onClick={() => dispatch({ type: 'setElement', element })}
+            >
+              <span style={{ color: elementColor(element), fontWeight: 600 }}>{element}</span>
+            </Button>
+          ))}
+
+          <Button
+            title="Periyodik tablodan seç"
+            active={pickerOpen}
+            onClick={() => setPickerOpen(true)}
+            grow
+          >
+            <span style={{ fontSize: 11 }}>Tümü…</span>
+          </Button>
         </div>
       </Section>
+
+      {pickerOpen && (
+        <ElementPicker
+          selected={state.element}
+          onPick={(element) => {
+            dispatch({ type: 'setElement', element });
+            setPickerOpen(false);
+          }}
+          onClose={() => setPickerOpen(false)}
+        />
+      )}
 
       <Section title="Araçlar">
         <div style={styles.grid}>
