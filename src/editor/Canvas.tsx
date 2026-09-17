@@ -1,35 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
-import {
-  addAtom,
-  addBond,
-  atomsInRect,
-  deleteAtom,
-  deleteBond,
-  findBondBetween,
-  getAtom,
-  getBond,
-  mergeAtoms,
-  moveAtom,
-  translateAtoms,
-  updateAtom,
-  updateBond,
-} from '../model/molecule';
-import {
-  BOND_LENGTH,
-  atomAt,
-  bondAt,
-  pointAt,
-  preferredBondAngle,
-  snapToGrid,
-} from '../model/geometry';
+import { atomsInRect, getAtom } from '../model/molecule';
+import { atomAt, snapToGrid } from '../model/geometry';
 import type { Point } from '../model/geometry';
-import { placeTemplate } from '../model/templates';
-import { placeGroup } from '../model/groups';
 import MoleculeSvg from '../render/MoleculeSvg';
 import type { Rect } from '../render/MoleculeSvg';
-import type { AtomId, BondOrder, Molecule } from '../model/types';
+import type { AtomId, Molecule } from '../model/types';
 import type { EditorAction, EditorState } from './editorReducer';
+import { SNAP_RADIUS, finishBond, finishMove, previewMove, resolveTap } from './gestures';
 import { toWorld, zoomAt, panBy } from './viewport';
 import type { Viewport } from './viewport';
 import type { StereoLabels } from '../rdkit/useMoleculeInfo';
@@ -122,99 +100,49 @@ export default function Canvas({
     if (e.button !== 0) return;
 
     const point = toLocal(e);
-    const hitAtomId = atomAt(molecule, point);
-    const hitBondId = hitAtomId ? null : bondAt(molecule, point);
+    const outcome = resolveTap(molecule, point, {
+      tool,
+      element: state.element,
+      bondOrder: state.bondOrder,
+      templateId: state.templateId,
+      groupId: state.groupId,
+      selectedAtoms: state.selectedAtoms,
+    });
 
-    switch (tool) {
-      case 'bond': {
-        if (hitBondId) {
-          // Var olan baga tiklamak dereceyi dondurur: 1 -> 2 -> 3 -> 1
-          const bond = getBond(molecule, hitBondId)!;
-          const next = ((bond.order % 3) + 1) as BondOrder;
-          commit(updateBond(molecule, hitBondId, { order: next, stereo: 'none' }));
-          return;
-        }
-        // Bos alandan basliyorsak once baslangic atomunu olustur.
-        let working = molecule;
-        let from = hitAtomId;
-        if (!from) {
-          const added = addAtom(working, { element: 'C', x: point.x, y: point.y });
-          working = added.molecule;
-          from = added.atomId;
-        }
-        dragRef.current = { kind: 'bond', fromAtom: from, moved: false, molAtStart: working };
-        dispatch({ type: 'preview', molecule: working });
-        return;
-      }
-
-      case 'select': {
-        if (hitAtomId) {
-          const inSelection = state.selectedAtoms.includes(hitAtomId);
-          // Secili bir atomu surukleyince tum secim tasinir.
-          const atomIds = inSelection && state.selectedAtoms.length > 1
-            ? state.selectedAtoms
-            : [hitAtomId];
-
-          dragRef.current = {
-            kind: 'move',
-            atomIds,
-            soloAtom: atomIds.length === 1 ? hitAtomId : null,
-            molAtStart: molecule,
-            start: point,
-            moved: false,
-          };
-          if (!inSelection) dispatch({ type: 'setSelection', atomIds: [hitAtomId] });
-        } else {
-          // Bos alanda surukleme kutu secimi baslatir.
-          dragRef.current = { kind: 'box', start: point };
-          setSelectionRect({ x1: point.x, y1: point.y, x2: point.x, y2: point.y });
-        }
-        return;
-      }
-
-      case 'atom': {
-        if (hitAtomId) {
-          commit(updateAtom(molecule, hitAtomId, { element: state.element, explicitH: undefined }));
-        } else {
-          commit(addAtom(molecule, { element: state.element, x: point.x, y: point.y }).molecule);
-        }
-        return;
-      }
-
-      case 'erase': {
-        if (hitAtomId) commit(deleteAtom(molecule, hitAtomId));
-        else if (hitBondId) commit(deleteBond(molecule, hitBondId));
-        return;
-      }
-
-      case 'chargePlus':
-      case 'chargeMinus': {
-        if (!hitAtomId) return;
-        const atom = getAtom(molecule, hitAtomId)!;
-        const delta = tool === 'chargePlus' ? 1 : -1;
-        commit(updateAtom(molecule, hitAtomId, { charge: atom.charge + delta }));
-        return;
-      }
-
-      case 'wedge':
-      case 'hash': {
-        if (!hitBondId) return;
-        const bond = getBond(molecule, hitBondId)!;
-        if (bond.stereo === tool) {
-          // Ayni araca tekrar tiklamak kamanin yonunu cevirir.
-          commit(updateBond(molecule, hitBondId, { a1: bond.a2, a2: bond.a1 }));
-        } else {
-          commit(updateBond(molecule, hitBondId, { stereo: tool, order: 1 }));
-        }
-        return;
-      }
-
-      case 'template':
-        commit(placeTemplate(molecule, state.templateId, point, hitAtomId, hitBondId));
+    switch (outcome.kind) {
+      case 'none':
         return;
 
-      case 'group':
-        commit(placeGroup(molecule, state.groupId, point, hitAtomId));
+      case 'commit':
+        commit(outcome.molecule);
+        return;
+
+      case 'startBond':
+        dragRef.current = {
+          kind: 'bond',
+          fromAtom: outcome.fromAtom,
+          moved: false,
+          molAtStart: outcome.molecule,
+        };
+        // Bos alandan basladiysak yeni atom hemen gorunsun.
+        dispatch({ type: 'preview', molecule: outcome.molecule });
+        return;
+
+      case 'startMove':
+        dragRef.current = {
+          kind: 'move',
+          atomIds: outcome.atomIds,
+          soloAtom: outcome.soloAtom,
+          molAtStart: molecule,
+          start: point,
+          moved: false,
+        };
+        if (outcome.select) dispatch({ type: 'setSelection', atomIds: outcome.select });
+        return;
+
+      case 'startBox':
+        dragRef.current = { kind: 'box', start: point };
+        setSelectionRect({ x1: point.x, y1: point.y, x2: point.x, y2: point.y });
         return;
     }
   }
@@ -243,7 +171,7 @@ export default function Canvas({
 
     if (drag.kind === 'bond') {
       const origin = getAtom(drag.molAtStart, drag.fromAtom)!;
-      const target = atomAt(drag.molAtStart, point, 15, drag.fromAtom);
+      const target = atomAt(drag.molAtStart, point, SNAP_RADIUS, drag.fromAtom);
       const end = target
         ? getAtom(drag.molAtStart, target)!
         : snapToGrid(origin, point, !e.shiftKey);
@@ -256,16 +184,11 @@ export default function Canvas({
     if (drag.kind === 'move') {
       drag.moved = true;
       // Surukleme sirasinda gecmise yazmiyoruz — tek adimda geri alinsin.
-      const moved = drag.soloAtom
-        ? moveAtom(drag.molAtStart, drag.soloAtom, point.x, point.y)
-        : translateAtoms(
-            drag.molAtStart,
-            drag.atomIds,
-            point.x - drag.start.x,
-            point.y - drag.start.y,
-          );
-      dispatch({ type: 'preview', molecule: moved });
-      setHoverAtom(drag.soloAtom ? atomAt(molecule, point, 15, drag.soloAtom) : null);
+      dispatch({
+        type: 'preview',
+        molecule: previewMove(drag.molAtStart, drag.atomIds, drag.soloAtom, drag.start, point),
+      });
+      setHoverAtom(drag.soloAtom ? atomAt(molecule, point, SNAP_RADIUS, drag.soloAtom) : null);
     }
   }
 
@@ -308,21 +231,7 @@ export default function Canvas({
         return;
       }
 
-      if (drag.soloAtom) {
-        // Baska bir atomun uzerine birakildiysa ikisini birlestir.
-        const target = atomAt(molecule, point, 15, drag.soloAtom);
-        const moved = moveAtom(drag.molAtStart, drag.soloAtom, point.x, point.y);
-        commit(target ? mergeAtoms(moved, target, drag.soloAtom) : moved);
-      } else {
-        commit(
-          translateAtoms(
-            drag.molAtStart,
-            drag.atomIds,
-            point.x - drag.start.x,
-            point.y - drag.start.y,
-          ),
-        );
-      }
+      commit(finishMove(drag.molAtStart, drag.atomIds, drag.soloAtom, drag.start, point));
       setHoverAtom(null);
     }
   }
@@ -348,46 +257,6 @@ export default function Canvas({
     />
   );
 }
-
-/**
- * Bag surukleme jestini sonuclandirir.
- *
- * - Baska bir atomun uzerinde biraktiysak o atoma baglar
- * - Suruklenmeden birakildiysa (tek tiklama) uygun bir acida yeni atom acar
- * - Aksi halde yakalanmis konumda yeni atom olusturur
- */
-function finishBond(
-  mol: Molecule,
-  fromId: AtomId,
-  point: Point,
-  moved: boolean,
-  order: BondOrder,
-  freeAngle: boolean,
-): Molecule {
-  const origin = getAtom(mol, fromId);
-  if (!origin) return mol;
-
-  const targetId = atomAt(mol, point, 15, fromId);
-  if (targetId) {
-    const existing = findBondBetween(mol, fromId, targetId);
-    if (existing) {
-      // Var olan bagin uzerine cizmek dereceyi degistirir.
-      return updateBond(mol, existing.id, { order });
-    }
-    return addBond(mol, fromId, targetId, order);
-  }
-
-  const end =
-    moved && !samePoint(origin, point)
-      ? snapToGrid(origin, point, !freeAngle)
-      : pointAt(origin, preferredBondAngle(mol, fromId), BOND_LENGTH);
-
-  const added = addAtom(mol, { element: 'C', x: end.x, y: end.y });
-  return addBond(added.molecule, fromId, added.atomId, order);
-}
-
-const samePoint = (a: Point, b: Point): boolean =>
-  Math.abs(a.x - b.x) < 2 && Math.abs(a.y - b.y) < 2;
 
 function cursorFor(tool: EditorState['tool']): string {
   switch (tool) {
