@@ -280,6 +280,8 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     gap: 14,
     padding: '8px 10px',
+    // Centikli telefonlarda ana ekran cubugu seridi ortmesin.
+    paddingBottom: 'max(8px, env(safe-area-inset-bottom))',
     background: 'var(--panel)',
     borderTop: '1px solid var(--border)',
     overflowX: 'auto',

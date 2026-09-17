@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- KimyasalCizim uygulama ikonu: benzen halkasi.
+       PNG'ler scripts/make-icons.mjs ile bu dosyadan uretilir. -->
+  <rect width="512" height="512" rx="112" fill="#2563eb"/>
+  <g fill="none" stroke="#ffffff" stroke-width="20" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Duzgun altigen: merkez (256,256), yaricap 132 -->
+    <polygon points="256,124 370,190 370,322 256,388 142,322 142,190"/>
+    <!-- Aromatik ikili baglar: bir atlamali, ice kaydirilmis ve kisaltilmis -->
+    <line x1="268" y1="155" x2="349" y2="202"/>
+    <line x1="349" y1="310" x2="268" y2="357"/>
+    <line x1="163" y1="298" x2="163" y2="214"/>
+  </g>
+</svg>

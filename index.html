@@ -2,7 +2,21 @@
 <html lang="tr">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- viewport-fit=cover: centikli ekranlarda arkaplan kenarlara kadar uzansin -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    />
+    <meta name="description" content="Tarayıcıda çalışan 2 boyutlu kimyasal yapı editörü." />
+    <meta name="theme-color" content="#2563eb" />
+
+    <!-- iOS web app manifest'i tam desteklemedigi icin bu etiketler ayrica gerekiyor -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="KimyasalÇizim" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
+
     <title>KimyasalÇizim — 2B Yapı Editörü</title>
     <!-- RDKit WASM yukleyicisi. window.initRDKitModule'u tanimlar. -->
     <script src="/RDKit_minimal.js"></script>

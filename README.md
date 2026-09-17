@@ -13,6 +13,39 @@ npm run dev     # http://localhost:5173
 
 `npm test` testleri, `npm run build` üretim derlemesini çalıştırır.
 
+## Telefona kurma (PWA)
+
+Uygulama kurulabilir bir PWA'dır. Yayındaki adresi telefonda açıp tarayıcı
+menüsünden **Ana ekrana ekle** deyin; ayrı bir uygulama gibi, adres çubuğu
+olmadan açılır.
+
+İlk ziyaretten sonra **çevrimdışı çalışır** — kimya motoru dahil. Uygulama
+kabuğu (HTML/JS/CSS/ikonlar, ~417 KB) service worker kurulurken önbelleğe
+alınır; RDKit'in 6,4 MB'lik WASM dosyası ise ilk kullanımda alınır. Kurulumu
+6,4 MB'lık bir indirmenin arkasında bekletmemek için bilerek böyle:
+
+| Katman | Strateji | Neden |
+|---|---|---|
+| Kabuk | Ön-önbellek | Küçük; anında ve eksiksiz olmalı |
+| WASM | İlk kullanımda, önbellek öncelikli | Büyük; kurulumu geciktirmemeli |
+
+WASM'ın önbellek adı RDKit sürümünü taşır (`rdkit-wasm-2025.3.2-1.0.0`).
+`public/` altındaki dosyalar Vite'ın hash'li adlandırmasından yararlanamadığı
+için gerekli: sürüm yükseltilince eski WASM sonsuza dek önbellekte kalmaz.
+
+Yeni sürümler sessizce devralınır (`registerType: 'autoUpdate'`).
+
+> **Yayınlarken:** service worker yalnızca HTTPS üzerinde (ya da localhost'ta)
+> çalışır. `dist/` klasörünü statik olarak sunmanız yeterli; sunucu tarafı yok.
+
+İkonlar `scripts/*.svg` dosyalarından üretilir ve depoya işlenir:
+
+```bash
+node scripts/make-icons.mjs
+```
+
+Dönüştürücü (`sharp`) `npx` ile geçici olarak çalışır; kalıcı bağımlılık değildir.
+
 ## Kullanım
 
 | İşlem | Nasıl |

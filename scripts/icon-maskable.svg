@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Maskelenebilir varyant: isletim sistemi kendi maskesini uyguladigi icin
+       arkaplan kose yuvarlamasiz, tam tasan olmali. Halka da guvenli bolgede
+       (merkezden %80) kalacak sekilde kucultuldu. -->
+  <rect width="512" height="512" fill="#2563eb"/>
+  <g fill="none" stroke="#ffffff" stroke-width="17" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Duzgun altigen: merkez (256,256), yaricap 112 -->
+    <polygon points="256,144 353,200 353,312 256,368 159,312 159,200"/>
+    <line x1="266" y1="170" x2="335" y2="210"/>
+    <line x1="335" y1="302" x2="266" y2="342"/>
+    <line x1="177" y1="292" x2="177" y2="220"/>
+  </g>
+</svg>
