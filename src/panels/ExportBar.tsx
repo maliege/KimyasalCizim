@@ -3,6 +3,7 @@ import { centerMolecule, fromMolfile, toMolfile, MolfileError } from '../model/m
 import { cleanupCoords, molblockFromSmiles } from '../rdkit/RdkitService';
 import { useRdkit } from '../rdkit/useRdkit';
 import type { Molecule } from '../model/types';
+import ExampleGallery from './ExampleGallery';
 
 type Props = {
   molecule: Molecule;
@@ -15,6 +16,7 @@ export default function ExportBar({ molecule, onImport, svgRef }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [smiles, setSmiles] = useState('');
+  const [galleryOpen, setGalleryOpen] = useState(false);
   const empty = molecule.atoms.length === 0;
 
   /** Tuvalin merkezi — iceri aktarilan yapiyi oraya oturtuyoruz. */
@@ -23,21 +25,25 @@ export default function ExportBar({ molecule, onImport, svgRef }: Props) {
     return { x: (canvas?.clientWidth ?? 600) / 2, y: (canvas?.clientHeight ?? 400) / 2 };
   };
 
-  function handleSmiles() {
-    const input = smiles.trim();
-    if (!input) return;
+  /** SMILES'i tuvale yukler. @returns basarili oldu mu */
+  function loadSmiles(input: string): boolean {
     if (status !== 'ready') {
       setError('Kimya motoru henüz hazır değil.');
-      return;
+      return false;
     }
     const molblock = molblockFromSmiles(rdkit, input);
     if (!molblock) {
       setError('SMILES çözümlenemedi. Yazımı kontrol edin.');
-      return;
+      return false;
     }
     setError(null);
-    setSmiles('');
     onImport(centerMolecule(fromMolfile(molblock), canvasCenter()));
+    return true;
+  }
+
+  function handleSmiles() {
+    const input = smiles.trim();
+    if (input && loadSmiles(input)) setSmiles('');
   }
 
   function handleCleanup() {
@@ -112,7 +118,24 @@ export default function ExportBar({ molecule, onImport, svgRef }: Props) {
         >
           ⬆ Yükle
         </button>
+        <button
+          type="button"
+          style={styles.button}
+          title="Hazır molekül galerisini aç"
+          onClick={() => setGalleryOpen(true)}
+        >
+          Örnekler
+        </button>
       </div>
+
+      {galleryOpen && (
+        <ExampleGallery
+          onPick={(example) => {
+            if (loadSmiles(example.smiles)) setGalleryOpen(false);
+          }}
+          onClose={() => setGalleryOpen(false)}
+        />
+      )}
 
       <input
         ref={fileRef}

@@ -29,6 +29,7 @@ npm run dev     # http://localhost:5173
 | **Yakınlaştırma** | Fare tekerleği (imlecin altındaki nokta sabit kalır) |
 | **Kaydırma** | Ctrl+sürükleme veya orta fare tuşu |
 | **SMILES'ten çizim** | Sağ paneldeki kutuya yapıştırıp «Çiz» |
+| **Örnek galerisi** | Sağ panelde «Örnekler» — 24 hazır molekül (aspirin, kafein, glikoz…) |
 | Yük / stereo | İlgili aracı seçip atoma ya da bağa tıklayın |
 | Düzenle | Koordinatları RDKit'e yeniden ürettirir |
 | Geri / ileri | Ctrl+Z, Ctrl+Y |

@@ -36,7 +36,10 @@ export default function InfoPanel({
       )}
 
       {empty ? (
-        <p style={styles.muted}>Tuval boş. Çizmeye başlayın.</p>
+        <p style={styles.muted}>
+          Tuval boş. Bağ çizmek için sürükleyin, ya da yukarıdan <strong>Örnekler</strong>’i
+          açıp hazır bir yapıyla başlayın.
+        </p>
       ) : (
         <>
           <Field label="Kapalı formül" value={formula} mono />

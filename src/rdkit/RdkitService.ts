@@ -135,6 +135,22 @@ export function molblockFromSmiles(rdkit: RDKitModule, smiles: string): string |
 }
 
 /**
+ * RDKit'in kendi cizicisiyle SVG uretir.
+ *
+ * Tuval icin kendi cizicimizi kullaniyoruz; bu yalniz galerideki kucuk
+ * resimler icin — tek cagrida kendi kendine yeten bir SVG verdigi icin
+ * onizleme uretmenin en ucuz yolu.
+ */
+export function renderSvg(
+  rdkit: RDKitModule,
+  input: string,
+  width = 160,
+  height = 120,
+): string | null {
+  return withMol(rdkit, input, (mol) => mol.get_svg(width, height));
+}
+
+/**
  * Koordinatlari yeniden uretir (clean-up).
  * @returns yeni koordinatli V2000 molblock, basarisizsa null
  */
