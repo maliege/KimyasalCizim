@@ -11,6 +11,10 @@ type Props = {
   status: RdkitState['status'];
   onImport: (molecule: Molecule) => void;
   svgRef: React.RefObject<SVGSVGElement | null>;
+  /** Dar ekran: sabit genislikli sutun yerine tam genislik alt panel */
+  compact?: boolean;
+  /** Dar ekranda paneli kapatma dugmesi gosterilir */
+  onClose?: () => void;
 };
 
 export default function InfoPanel({
@@ -20,12 +24,19 @@ export default function InfoPanel({
   status,
   onImport,
   svgRef,
+  compact = false,
+  onClose,
 }: Props) {
   const empty = molecule.atoms.length === 0;
   const formula = molecularFormula(molecule);
 
   return (
-    <aside style={styles.panel}>
+    <aside style={compact ? styles.panelCompact : styles.panel}>
+      {onClose && (
+        <button type="button" style={styles.closeRow} onClick={onClose}>
+          ▾ Bilgi panelini kapat
+        </button>
+      )}
       <ExportBar molecule={molecule} onImport={onImport} svgRef={svgRef} />
 
       <h2 style={styles.title}>Molekül bilgisi</h2>
@@ -148,6 +159,26 @@ const styles: Record<string, React.CSSProperties> = {
     background: 'var(--panel)',
     borderLeft: '1px solid var(--border)',
     overflowY: 'auto',
+  },
+  /** Dar ekran: tuvalin altinda, yuksekligi sinirli bir panel. */
+  panelCompact: {
+    flexShrink: 0,
+    maxHeight: '45%',
+    padding: 12,
+    background: 'var(--panel)',
+    borderTop: '1px solid var(--border)',
+    overflowY: 'auto',
+  },
+  closeRow: {
+    width: '100%',
+    marginBottom: 8,
+    padding: '8px 10px',
+    fontSize: 12,
+    background: '#fff',
+    border: '1px solid var(--border)',
+    borderRadius: 6,
+    cursor: 'pointer',
+    color: 'var(--muted)',
   },
   title: { fontSize: 13, margin: '16px 0 10px' },
   subtitle: { fontSize: 11, textTransform: 'uppercase', color: 'var(--muted)', margin: '14px 0 6px' },

@@ -6,6 +6,7 @@ import {
   MIN_SCALE,
   fitTo,
   panBy,
+  pinchTo,
   toScreen,
   toWorld,
   viewBoxOf,
@@ -71,6 +72,65 @@ describe('panBy', () => {
 
   it('ölçek büyükken daha az dünya birimi kaydırır', () => {
     expect(panBy({ x: 100, y: 100, scale: 2 }, 50, 0).x).toBe(75);
+  });
+});
+
+describe('pinchTo', () => {
+  const vp = { x: 0, y: 0, scale: 1 };
+
+  it('parmaklar açılınca yakınlaştırır', () => {
+    const sonra = pinchTo(vp, [{ x: 100, y: 100 }, { x: 200, y: 100 }], [
+      { x: 50, y: 100 },
+      { x: 250, y: 100 },
+    ]);
+    expect(sonra.scale).toBeCloseTo(2, 6);
+  });
+
+  it('parmaklar kapanınca uzaklaştırır', () => {
+    const sonra = pinchTo(vp, [{ x: 0, y: 0 }, { x: 200, y: 0 }], [
+      { x: 50, y: 0 },
+      { x: 150, y: 0 },
+    ]);
+    expect(sonra.scale).toBeCloseTo(0.5, 6);
+  });
+
+  it('ilk orta noktadaki dünya noktasını yeni orta noktaya taşır', () => {
+    const before = [{ x: 100, y: 60 }, { x: 300, y: 140 }] as const;
+    const after = [{ x: 160, y: 200 }, { x: 460, y: 320 }] as const;
+
+    const tutulan = toWorld(vp, 200, 100); // before'un orta noktası
+    const sonra = pinchTo(vp, before, after);
+    const yeniKonum = toWorld(sonra, 310, 260); // after'ın orta noktası
+
+    expect(yeniKonum.x).toBeCloseTo(tutulan.x, 6);
+    expect(yeniKonum.y).toBeCloseTo(tutulan.y, 6);
+  });
+
+  it('parmaklar aynı mesafedeyken yalnızca kaydırır', () => {
+    const sonra = pinchTo(vp, [{ x: 100, y: 100 }, { x: 200, y: 100 }], [
+      { x: 140, y: 130 },
+      { x: 240, y: 130 },
+    ]);
+    expect(sonra.scale).toBe(1);
+    // Icerik 40,30 piksel kaydi -> pencere ters yone kayar
+    expect(sonra.x).toBeCloseTo(-40, 6);
+    expect(sonra.y).toBeCloseTo(-30, 6);
+  });
+
+  it('parmaklar üst üste gelirse ölçeği patlatmaz', () => {
+    const sonra = pinchTo(vp, [{ x: 100, y: 100 }, { x: 100, y: 100 }], [
+      { x: 100, y: 100 },
+      { x: 300, y: 100 },
+    ]);
+    expect(sonra.scale).toBe(1);
+  });
+
+  it('ölçeği sınırlar içinde tutar', () => {
+    const buyuk = pinchTo({ x: 0, y: 0, scale: MAX_SCALE }, [{ x: 0, y: 0 }, { x: 10, y: 0 }], [
+      { x: 0, y: 0 },
+      { x: 400, y: 0 },
+    ]);
+    expect(buyuk.scale).toBe(MAX_SCALE);
   });
 });
 

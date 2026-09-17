@@ -9,6 +9,8 @@ import Toolbar from './panels/Toolbar';
 import InfoPanel from './panels/InfoPanel';
 import { useMoleculeInfo } from './rdkit/useMoleculeInfo';
 import { resolveKey } from './editor/keymap';
+import { molecularFormula } from './model/valence';
+import { COMPACT_QUERY, useMediaQuery } from './ui/useMediaQuery';
 import type { Molecule } from './model/types';
 
 /** Kaydetmeden once beklenen sure — her fare hareketinde diske yazmayalim. */
@@ -25,15 +27,31 @@ export default function App() {
   const [viewport, setViewport] = useState<Viewport>(DEFAULT_VIEWPORT);
   const svgRef = useRef<SVGSVGElement>(null);
   const canvasBoxRef = useRef<HTMLDivElement>(null);
-  const [size, setSize] = useState({ width: 800, height: 600 });
+  // Sifirla basliyoruz ki "henuz olculmedi" durumu ayirt edilebilsin;
+  // 800x600 gibi bir taban deger, sigdirma adimini yanlis olcuyle calistirir.
+  const [size, setSize] = useState({ width: 0, height: 0 });
 
   // Tek bir RDKit hesabi hem paneli hem tuvaldeki stereo etiketlerini besler.
   const { info, stereo, pending, status } = useMoleculeInfo(state.molecule);
+
+  // Dar ekranda uc sutun sigmaz: tuval tam genislik alir, bilgi paneli
+  // istege bagli acilir.
+  const compact = useMediaQuery(COMPACT_QUERY);
+  const [infoOpen, setInfoOpen] = useState(false);
+  const formula = molecularFormula(state.molecule);
 
   // Tuval, kalan alani doldursun.
   useLayoutEffect(() => {
     const box = canvasBoxRef.current;
     if (!box) return;
+
+    // Ilk olcumu hemen aliyoruz: ResizeObserver'in ilk geri cagrisi bir
+    // sonraki kareye kaliyor ve o ana kadar tuval olcusuz oluyor. Bu gecikme
+    // "kayitli cizimi sigdir" adimini sahte olcuyle calistirip molekulu
+    // ekran disinda birakiyordu.
+    const rect = box.getBoundingClientRect();
+    setSize({ width: Math.max(1, rect.width), height: Math.max(1, rect.height) });
+
     const observer = new ResizeObserver(([entry]) => {
       const { width, height } = entry.contentRect;
       setSize({ width: Math.max(1, width), height: Math.max(1, height) });
@@ -140,15 +158,29 @@ export default function App() {
     <div style={styles.app}>
       <header style={styles.header}>
         <strong style={{ fontSize: 14 }}>KimyasalÇizim</strong>
-        <span style={styles.hint}>
-          Bağ çizmek için sürükleyin · Shift serbest açı · Tekerlek yakınlaştırır · Ctrl+sürükleme
-          kaydırır
-        </span>
+        {compact ? (
+          <>
+            <span style={styles.formula}>{formula || 'boş'}</span>
+            <button
+              type="button"
+              style={styles.infoToggle}
+              onClick={() => setInfoOpen((open) => !open)}
+              aria-expanded={infoOpen}
+            >
+              {infoOpen ? 'Kapat' : 'Bilgi'}
+            </button>
+          </>
+        ) : (
+          <span style={styles.hint}>
+            Bağ çizmek için sürükleyin · Shift serbest açı · Tekerlek yakınlaştırır ·
+            Ctrl+sürükleme kaydırır
+          </span>
+        )}
       </header>
 
-      <div style={styles.body}>
-        <Toolbar state={state} dispatch={dispatch} onZoom={handleZoom} onFit={handleFit} />
-
+      <div style={compact ? styles.bodyCompact : styles.body}>
+        {/* Dar ekranda tuval once gelir, arac seridi altina duser (basparmak
+            menzili); genis ekranda klasik uc sutun. */}
         <main ref={canvasBoxRef} style={styles.canvasBox}>
           <Canvas
             state={state}
@@ -162,30 +194,65 @@ export default function App() {
           />
         </main>
 
-        <InfoPanel
-          molecule={state.molecule}
-          info={info}
-          pending={pending}
-          status={status}
-          onImport={handleImport}
-          svgRef={svgRef}
+        <Toolbar
+          state={state}
+          dispatch={dispatch}
+          onZoom={handleZoom}
+          onFit={handleFit}
+          compact={compact}
         />
+
+        {(!compact || infoOpen) && (
+          <InfoPanel
+            molecule={state.molecule}
+            info={info}
+            pending={pending}
+            status={status}
+            onImport={handleImport}
+            svgRef={svgRef}
+            compact={compact}
+            onClose={compact ? () => setInfoOpen(false) : undefined}
+          />
+        )}
       </div>
     </div>
   );
 }
 
 const styles: Record<string, React.CSSProperties> = {
-  app: { display: 'flex', flexDirection: 'column', height: '100vh' },
+  // 100dvh: mobil tarayicilarda adres cubugu acilip kapandikca 100vh
+  // degisir ve sayfa zipllar; dvh gercek gorunur yuksekligi verir.
+  app: { display: 'flex', flexDirection: 'column', height: '100dvh' },
   header: {
     display: 'flex',
-    alignItems: 'baseline',
-    gap: 12,
+    alignItems: 'center',
+    gap: 10,
     padding: '8px 12px',
     background: 'var(--panel)',
     borderBottom: '1px solid var(--border)',
   },
   hint: { fontSize: 11, color: 'var(--muted)' },
+  formula: {
+    flex: 1,
+    fontSize: 12,
+    fontFamily: 'ui-monospace, Consolas, monospace',
+    color: 'var(--muted)',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  },
+  infoToggle: {
+    fontSize: 12,
+    padding: '6px 12px',
+    minHeight: 34,
+    background: '#fff',
+    border: '1px solid var(--border)',
+    borderRadius: 6,
+    cursor: 'pointer',
+    color: 'var(--text)',
+    flexShrink: 0,
+  },
   body: { display: 'flex', flex: 1, minHeight: 0 },
-  canvasBox: { flex: 1, minWidth: 0, overflow: 'hidden', background: '#fff' },
+  bodyCompact: { display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 },
+  canvasBox: { flex: 1, minWidth: 0, minHeight: 0, overflow: 'hidden', background: '#fff' },
 };

@@ -27,8 +27,20 @@ import type { ToolId } from './editorReducer';
  * jest davranisi dogrudan test edilebilir.
  */
 
-/** Bir atoma "degdi" sayilmak icin gereken yakinlik (dunya birimi). */
-export const SNAP_RADIUS = 15;
+/**
+ * Bir atoma "degdi" sayilmak icin gereken yakinlik — *ekran pikseli*.
+ *
+ * Dunya biriminde sabitlenseydi uzaklastirinca hedefler kucuk kalirdi:
+ * 0.2x yakinlastirmada 15 dunya birimi yalnizca 3 piksel eder. Cagiran
+ * taraf bunu `viewport.scale`'e bolerek dunya birimine cevirir.
+ */
+export const HIT_RADIUS_PX = 15;
+
+/** Parmak fareden kalindir; dokunmatikte hedefi buyutuyoruz. */
+export const HIT_RADIUS_TOUCH_PX = 26;
+
+/** Varsayilan yaricap (1:1 yakinlastirmada piksel = dunya birimi). */
+export const SNAP_RADIUS = HIT_RADIUS_PX;
 
 /** Bag aracinin bos alandan basladiginda actigi varsayilan element. */
 const DEFAULT_ELEMENT = 'C';
@@ -41,6 +53,8 @@ export type TapContext = {
   templateId: string;
   groupId: string;
   selectedAtoms: AtomId[];
+  /** Vurus yaricapi, dunya biriminde. Verilmezse 1:1 varsayilir. */
+  hitRadius?: number;
 };
 
 /**
@@ -64,9 +78,10 @@ export type TapOutcome =
 
 /** Tuvale basildiginda ne olacagina karar verir. */
 export function resolveTap(mol: Molecule, point: Point, ctx: TapContext): TapOutcome {
-  const hitAtomId = atomAt(mol, point, SNAP_RADIUS);
+  const radius = ctx.hitRadius ?? SNAP_RADIUS;
+  const hitAtomId = atomAt(mol, point, radius);
   // Atoma degdiysek bagi aramayiz; atom her zaman onceliklidir.
-  const hitBondId = hitAtomId ? null : bondAt(mol, point);
+  const hitBondId = hitAtomId ? null : bondAt(mol, point, radius * 0.55);
 
   switch (ctx.tool) {
     case 'bond': {
@@ -166,11 +181,12 @@ export function finishBond(
   moved: boolean,
   order: BondOrder,
   freeAngle: boolean,
+  hitRadius = SNAP_RADIUS,
 ): Molecule {
   const origin = getAtom(mol, fromId);
   if (!origin) return mol;
 
-  const targetId = atomAt(mol, point, SNAP_RADIUS, fromId);
+  const targetId = atomAt(mol, point, hitRadius, fromId);
   if (targetId) {
     const existing = findBondBetween(mol, fromId, targetId);
     // Var olan bagin uzerine cizmek dereceyi degistirir, ikinci bag acmaz.
@@ -210,11 +226,12 @@ export function finishMove(
   soloAtom: AtomId | null,
   start: Point,
   point: Point,
+  hitRadius = SNAP_RADIUS,
 ): Molecule {
   const moved = previewMove(molAtStart, atomIds, soloAtom, start, point);
   if (!soloAtom) return moved;
 
-  const target = atomAt(molAtStart, point, SNAP_RADIUS, soloAtom);
+  const target = atomAt(molAtStart, point, hitRadius, soloAtom);
   return target ? mergeAtoms(moved, target, soloAtom) : moved;
 }
 

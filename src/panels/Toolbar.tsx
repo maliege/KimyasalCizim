@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { createContext, useContext, useState } from 'react';
 import { TEMPLATES } from '../model/templates';
 import { GROUPS } from '../model/groups';
 import { elementName } from '../model/elements';
@@ -13,6 +13,8 @@ type Props = {
   dispatch: React.Dispatch<EditorAction>;
   onZoom: (factor: number) => void;
   onFit: () => void;
+  /** Dar ekran: dikey panel yerine yatay kaydirilabilir serit */
+  compact?: boolean;
 };
 
 const TOOLS: { id: ToolId; label: string; hint: string }[] = [
@@ -32,14 +34,26 @@ const BOND_ORDERS: { order: BondOrder; label: string; hint: string }[] = [
 
 const ELEMENTS = ['C', 'N', 'O', 'S', 'P', 'F', 'Cl', 'Br', 'I', 'H'];
 
-export default function Toolbar({ state, dispatch, onZoom, onFit }: Props) {
+/**
+ * Dokunma hedefi buyutulsun mu?
+ *
+ * Context kullaniyoruz cunku bu bayrak 13 ayri Button'a ulasmali ve hepsi
+ * kardes; her birine prop gecirmek gurultu olurdu. C#'taki "ambient
+ * context" fikrinin React karsiligi.
+ */
+const TouchTargets = createContext(false);
+
+export default function Toolbar({ state, dispatch, onZoom, onFit, compact = false }: Props) {
   const [pickerOpen, setPickerOpen] = useState(false);
 
   // Hizli palette zaten bulunanlari son kullanilanlarda tekrarlamaya gerek yok.
   const recent = state.recentElements.filter((e) => !ELEMENTS.includes(e));
 
+  const Section = compact ? CompactSection : WideSection;
+
   return (
-    <aside style={styles.panel}>
+    <TouchTargets.Provider value={compact}>
+    <aside style={compact ? styles.panelCompact : styles.panel}>
       <Section title="Bağ">
         <div style={styles.grid}>
           {BOND_ORDERS.map(({ order, label, hint }) => (
@@ -133,14 +147,14 @@ export default function Toolbar({ state, dispatch, onZoom, onFit }: Props) {
       </Section>
 
       <Section title="Halkalar">
-        <div style={styles.templateList}>
+        <div style={compact ? styles.grid : styles.templateList}>
           {TEMPLATES.map((template) => (
             <Button
               key={template.id}
               title={`${template.label} — boş alana, bir atoma (spiro) veya bağa (kaynaşık) tıklayın`}
               active={state.tool === 'template' && state.templateId === template.id}
               onClick={() => dispatch({ type: 'setTemplate', templateId: template.id })}
-              wide
+              wide={!compact}
             >
               {template.label}
             </Button>
@@ -184,13 +198,30 @@ export default function Toolbar({ state, dispatch, onZoom, onFit }: Props) {
         </div>
       </Section>
     </aside>
+    </TouchTargets.Provider>
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+type SectionProps = { title: string; children: React.ReactNode };
+
+/** Genis ekran: basliklı dikey blok. */
+function WideSection({ title, children }: SectionProps) {
   return (
     <section style={{ marginBottom: 16 }}>
       <h2 style={styles.sectionTitle}>{title}</h2>
+      {children}
+    </section>
+  );
+}
+
+/**
+ * Dar ekran: baslik solda kucuk bir etiket, butonlar yaninda.
+ * Bloklar yatay seritte yan yana dizilir ve serit kaydirilabilir.
+ */
+function CompactSection({ title, children }: SectionProps) {
+  return (
+    <section style={styles.compactSection}>
+      <h2 style={styles.compactSectionTitle}>{title}</h2>
       {children}
     </section>
   );
@@ -213,6 +244,7 @@ function Button({
   wide?: boolean;
   grow?: boolean;
 }) {
+  const touch = useContext(TouchTargets);
   return (
     <button
       type="button"
@@ -221,6 +253,7 @@ function Button({
       disabled={disabled}
       style={{
         ...styles.button,
+        ...(touch ? styles.buttonTouch : {}),
         ...(wide ? styles.buttonWide : {}),
         ...(grow ? styles.buttonGrow : {}),
         ...(active ? styles.buttonActive : {}),
@@ -240,6 +273,35 @@ const styles: Record<string, React.CSSProperties> = {
     background: 'var(--panel)',
     borderRight: '1px solid var(--border)',
     overflowY: 'auto',
+  },
+  /** Dar ekran: tuvalin altinda yatay kaydirilabilir serit. */
+  panelCompact: {
+    flexShrink: 0,
+    display: 'flex',
+    gap: 14,
+    padding: '8px 10px',
+    background: 'var(--panel)',
+    borderTop: '1px solid var(--border)',
+    overflowX: 'auto',
+    // Parmakla kaydirmaya izin ver; tuvalde touchAction 'none'.
+    touchAction: 'pan-x',
+  },
+  compactSection: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 6,
+    flexShrink: 0,
+  },
+  compactSectionTitle: {
+    fontSize: 9,
+    fontWeight: 600,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    color: 'var(--muted)',
+    margin: 0,
+    writingMode: 'vertical-rl',
+    transform: 'rotate(180deg)',
+    maxHeight: 62,
   },
   sectionTitle: {
     fontSize: 11,
@@ -262,6 +324,8 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: 'pointer',
     color: 'var(--text)',
   },
+  /** Parmak icin onerilen en kucuk hedef ~44px. */
+  buttonTouch: { minWidth: 42, height: 42, fontSize: 15 },
   buttonWide: { width: '100%', fontSize: 12, textAlign: 'left' },
   buttonGrow: { flex: 1 },
   buttonActive: {

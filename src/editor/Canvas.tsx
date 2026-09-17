@@ -7,10 +7,11 @@ import MoleculeSvg from '../render/MoleculeSvg';
 import type { Rect } from '../render/MoleculeSvg';
 import type { AtomId, Molecule } from '../model/types';
 import type { EditorAction, EditorState } from './editorReducer';
-import { SNAP_RADIUS, finishBond, finishMove, previewMove, resolveTap } from './gestures';
-import { toWorld, zoomAt, panBy } from './viewport';
+import { finishBond, finishMove, previewMove, resolveTap } from './gestures';
+import { toWorld, zoomAt, panBy, pinchTo } from './viewport';
 import type { Viewport } from './viewport';
 import type { StereoLabels } from '../rdkit/useMoleculeInfo';
+import { HIT_RADIUS_PX, HIT_RADIUS_TOUCH_PX } from './gestures';
 
 type Props = {
   state: EditorState;
@@ -53,6 +54,17 @@ export default function Canvas({
   svgRef,
 }: Props) {
   const dragRef = useRef<Drag>(null);
+  /** Ekranda su an basili olan tum isaretciler — coklu dokunma icin. */
+  const pointersRef = useRef(new Map<number, Point>());
+  /**
+   * Iki parmak jesti suruyorsa jestin *baslangic* durumu.
+   *
+   * Her adimi bir oncekine gore degil basa gore hesapliyoruz: pointermove
+   * olaylari parmak basina ayri ayri gelir, yani ara karelerde bir parmak
+   * hep bayat kalir. Artimli hesapta bu, iki parmakla kaydirirken olcegin
+   * titremesine yol aciyordu.
+   */
+  const pinchRef = useRef<{ points: readonly [Point, Point]; viewport: Viewport } | null>(null);
   const [preview, setPreview] = useState<Rect | null>(null);
   const [selectionRect, setSelectionRect] = useState<Rect | null>(null);
   const [hoverAtom, setHoverAtom] = useState<AtomId | null>(null);
@@ -89,8 +101,34 @@ export default function Canvas({
 
   const commit = (mol: Molecule) => dispatch({ type: 'commit', molecule: mol });
 
+  /** Dokunma hedefi fareden buyuk; yaricap ayrica yakinlastirmaya gore olceklenir. */
+  const hitRadiusFor = (e: { pointerType: string }): number =>
+    (e.pointerType === 'touch' ? HIT_RADIUS_TOUCH_PX : HIT_RADIUS_PX) / viewport.scale;
+
+  /** Suren tek parmak jestini iptal eder (ikinci parmak inince). */
+  function cancelActiveDrag() {
+    const drag = dragRef.current;
+    dragRef.current = null;
+    setPreview(null);
+    setSelectionRect(null);
+    setHoverAtom(null);
+    // Baslamis bir cizim varsa modeli jest oncesine dondur.
+    if (drag && (drag.kind === 'bond' || drag.kind === 'move')) {
+      dispatch({ type: 'preview', molecule: drag.molAtStart });
+    }
+  }
+
   function handlePointerDown(e: ReactPointerEvent) {
-    svgRef.current?.setPointerCapture(e.pointerId);
+    pointersRef.current.set(e.pointerId, screenPoint(e));
+    capturePointer(svgRef.current, e.pointerId);
+
+    // Ikinci parmak inince tek parmak jesti birakilir ve yakinlastirmaya gecilir.
+    if (pointersRef.current.size === 2) {
+      cancelActiveDrag();
+      pinchRef.current = { points: twoPointers(pointersRef.current), viewport };
+      return;
+    }
+    if (pointersRef.current.size > 2) return;
 
     // Orta tus (veya Ctrl+surukleme) her araçta tuvali kaydirir.
     if (e.button === 1 || e.ctrlKey || e.metaKey) {
@@ -107,6 +145,7 @@ export default function Canvas({
       templateId: state.templateId,
       groupId: state.groupId,
       selectedAtoms: state.selectedAtoms,
+      hitRadius: hitRadiusFor(e),
     });
 
     switch (outcome.kind) {
@@ -148,10 +187,21 @@ export default function Canvas({
   }
 
   function handlePointerMove(e: ReactPointerEvent) {
+    if (pointersRef.current.has(e.pointerId)) {
+      pointersRef.current.set(e.pointerId, screenPoint(e));
+    }
+
+    // Iki parmak: yakinlastirma ve kaydirma birlikte, jestin basina gore.
+    if (pinchRef.current && pointersRef.current.size >= 2) {
+      const { points, viewport: startViewport } = pinchRef.current;
+      onViewportChange(pinchTo(startViewport, points, twoPointers(pointersRef.current)));
+      return;
+    }
+
     const drag = dragRef.current;
 
     if (!drag) {
-      setHoverAtom(atomAt(molecule, toLocal(e)));
+      setHoverAtom(atomAt(molecule, toLocal(e), hitRadiusFor(e)));
       return;
     }
 
@@ -171,7 +221,7 @@ export default function Canvas({
 
     if (drag.kind === 'bond') {
       const origin = getAtom(drag.molAtStart, drag.fromAtom)!;
-      const target = atomAt(drag.molAtStart, point, SNAP_RADIUS, drag.fromAtom);
+      const target = atomAt(drag.molAtStart, point, hitRadiusFor(e), drag.fromAtom);
       const end = target
         ? getAtom(drag.molAtStart, target)!
         : snapToGrid(origin, point, !e.shiftKey);
@@ -188,15 +238,31 @@ export default function Canvas({
         type: 'preview',
         molecule: previewMove(drag.molAtStart, drag.atomIds, drag.soloAtom, drag.start, point),
       });
-      setHoverAtom(drag.soloAtom ? atomAt(molecule, point, SNAP_RADIUS, drag.soloAtom) : null);
+      setHoverAtom(
+        drag.soloAtom ? atomAt(molecule, point, hitRadiusFor(e), drag.soloAtom) : null,
+      );
     }
   }
 
   function handlePointerUp(e: ReactPointerEvent) {
+    pointersRef.current.delete(e.pointerId);
+    releasePointer(svgRef.current, e.pointerId);
+
+    // Iki parmaktan biri kalkti: jest biter, kalan parmak cizime baslamaz
+    // (yoksa yakinlastirmadan cikarken tuvale cizgi atilirdi).
+    if (pinchRef.current) {
+      // Uc parmaktan biri kalktiysa kalan ikisiyle yeniden baslat; iki
+      // parmaktan biri kalktiysa jest biter.
+      pinchRef.current =
+        pointersRef.current.size >= 2
+          ? { points: twoPointers(pointersRef.current), viewport }
+          : null;
+      return;
+    }
+
     const drag = dragRef.current;
     dragRef.current = null;
     setPreview(null);
-    svgRef.current?.releasePointerCapture(e.pointerId);
     if (!drag) return;
 
     if (drag.kind === 'pan') return;
@@ -219,7 +285,15 @@ export default function Canvas({
 
     if (drag.kind === 'bond') {
       commit(
-        finishBond(drag.molAtStart, drag.fromAtom, point, drag.moved, state.bondOrder, e.shiftKey),
+        finishBond(
+          drag.molAtStart,
+          drag.fromAtom,
+          point,
+          drag.moved,
+          state.bondOrder,
+          e.shiftKey,
+          hitRadiusFor(e),
+        ),
       );
       setHoverAtom(null);
       return;
@@ -231,7 +305,16 @@ export default function Canvas({
         return;
       }
 
-      commit(finishMove(drag.molAtStart, drag.atomIds, drag.soloAtom, drag.start, point));
+      commit(
+        finishMove(
+          drag.molAtStart,
+          drag.atomIds,
+          drag.soloAtom,
+          drag.start,
+          point,
+          hitRadiusFor(e),
+        ),
+      );
       setHoverAtom(null);
     }
   }
@@ -251,11 +334,42 @@ export default function Canvas({
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
+      // Isaretci iptal edilirse (sistem jesti, cagri vb.) yarim kalan
+      // jesti temizlemezsek surukleme takili kalir.
+      onPointerCancel={handlePointerUp}
       onPointerLeave={() => setHoverAtom(null)}
       onContextMenu={(e) => e.preventDefault()}
       style={{ display: 'block', background: '#fff', touchAction: 'none', cursor: cursorFor(tool) }}
     />
   );
+}
+
+/** Haritadaki ilk iki isaretciyi sirali bir cift olarak verir. */
+function twoPointers(pointers: Map<number, Point>): readonly [Point, Point] {
+  const [first, second] = [...pointers.values()];
+  return [first, second];
+}
+
+/**
+ * Isaretci yakalama, isaretci artik etkin degilse NotFoundError atar.
+ * Yakalama sadece bir kolaylik — jest onsuz da yurumeli, bu yuzden
+ * hatayi yutuyoruz. Sarmalanmasaydi tek bir yaris durumu tuvali
+ * o jest boyunca tamamen olu birakirdi.
+ */
+function capturePointer(element: SVGSVGElement | null, pointerId: number): void {
+  try {
+    element?.setPointerCapture(pointerId);
+  } catch {
+    /* yakalanamadi; jest yine de calisir */
+  }
+}
+
+function releasePointer(element: SVGSVGElement | null, pointerId: number): void {
+  try {
+    element?.releasePointerCapture(pointerId);
+  } catch {
+    /* zaten birakilmis */
+  }
 }
 
 function cursorFor(tool: EditorState['tool']): string {

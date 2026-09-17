@@ -43,6 +43,21 @@ npm run dev     # http://localhost:5173
 Bu ayrım zorunlu: `w` kama aracı ama `W` tungsten; aynı çakışma `b`/`B`, `s`/`S`,
 `h`/`H` için de geçerli.
 
+### Telefon ve tablet
+
+Dar ekranda (≤820px) yerleşim tek sütuna döner: tuval tam genişlik alır, araç
+şeridi başparmak menzilinde alta iner, bilgi paneli başlıktaki **Bilgi**
+düğmesiyle açılır. Dokunma hedefleri 42px'e büyür.
+
+| Jest | Etki |
+|---|---|
+| Tek parmak | Seçili araçla çizim |
+| İki parmak — açma/kapama | Yakınlaştırma |
+| İki parmak — kaydırma | Tuvali gezdirme |
+
+İkinci parmak indiği anda süren çizim iptal edilir, yani yakınlaştırırken
+tuvale kazara çizgi atılmaz.
+
 ### Değerlik ve elementler
 
 Ana grup elementlerinin değerliği biliniyor, hidrojenleri otomatik hesaplanıyor.

@@ -52,6 +52,38 @@ export const panBy = (vp: Viewport, dxPx: number, dyPx: number): Viewport => ({
 });
 
 /**
+ * Iki parmak jesti: yakinlastirma ve kaydirmayi tek adimda uygular.
+ *
+ * Parmaklarin arasindaki mesafe olcegi, orta noktalarinin kaymasi da
+ * kaydirmayi verir. Jest boyunca ilk orta noktanin altindaki dunya noktasi
+ * yeni orta noktaya tasinir — parmaklar iceriği "tutuyormus" gibi hissettiren
+ * sey bu.
+ */
+export function pinchTo(
+  vp: Viewport,
+  before: readonly [Point, Point],
+  after: readonly [Point, Point],
+): Viewport {
+  const spreadBefore = Math.hypot(before[1].x - before[0].x, before[1].y - before[0].y);
+  const spreadAfter = Math.hypot(after[1].x - after[0].x, after[1].y - after[0].y);
+
+  // Parmaklar ust uste geldiyse olcek hesaplanamaz; yalniz kaydirmaya duseriz.
+  const factor = spreadBefore > 1 && spreadAfter > 1 ? spreadAfter / spreadBefore : 1;
+  const scale = clampScale(vp.scale * factor);
+
+  const midBefore = midpoint(before);
+  const midAfter = midpoint(after);
+  const anchor = toWorld(vp, midBefore.x, midBefore.y);
+
+  return { x: anchor.x - midAfter.x / scale, y: anchor.y - midAfter.y / scale, scale };
+}
+
+const midpoint = (points: readonly [Point, Point]): Point => ({
+  x: (points[0].x + points[1].x) / 2,
+  y: (points[0].y + points[1].y) / 2,
+});
+
+/**
  * Molekulu tuvale ortalayip sigdirir. Bos molekulde varsayilana doner.
  *
  * Buyutme 1:1 ile sinirlidir — yapilar zaten dogal boyutta (BOND_LENGTH)
