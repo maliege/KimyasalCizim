@@ -1,0 +1,14 @@
+node_modules
+dist
+*.local
+.DS_Store
+
+# TypeScript artimli derleme onbellegi
+tsconfig.tsbuildinfo
+
+# Makineye ozel Claude Code izinleri (launch.json paylasilir)
+.claude/settings.local.json
+
+# postinstall ile node_modules'ten kopyalanir
+public/RDKit_minimal.js
+public/RDKit_minimal.wasm
