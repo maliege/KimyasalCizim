@@ -36,7 +36,20 @@ için gerekli: sürüm yükseltilince eski WASM sonsuza dek önbellekte kalmaz.
 Yeni sürümler sessizce devralınır (`registerType: 'autoUpdate'`).
 
 > **Yayınlarken:** service worker yalnızca HTTPS üzerinde (ya da localhost'ta)
-> çalışır. `dist/` klasörünü statik olarak sunmanız yeterli; sunucu tarafı yok.
+> çalışır. `dist/` klasörünün **içindekileri** statik olarak sunmanız yeterli;
+> sunucu tarafı yok.
+>
+> Sunucu yapılandırması iki dosyada, ikisi de derlemeyle `dist/`'e gelir:
+>
+> | Sunucu | Dosya |
+> |---|---|
+> | Apache (Bluehost vb.) | `.htaccess` |
+> | IIS (Windows hosting, `chemdraw.maege.tr`) | `web.config` |
+>
+> IIS'te `web.config` **şart**: IIS tanımadığı uzantıları sunmaz ve
+> `manifest.webmanifest` 404 verir; manifest olmadan tarayıcı «Yükle»
+> seçeneğini hiç göstermez. İkisi de gizli ya da "sistem" dosyası gibi
+> görünebilir; yükleme aracında gizli dosyaları göster seçeneğini açın.
 
 İkonlar `scripts/*.svg` dosyalarından üretilir ve depoya işlenir:
 
