@@ -29,6 +29,8 @@ type Props = {
   hoverAtomId?: string | null;
   /** CIP stereo etiketleri: atomId -> "(R)", bondId -> "(E)" */
   stereo?: { atoms: Map<string, string>; bonds: Map<string, string> } | null;
+  /** Degerligi asilmis atomlar — kirmizi halkayla isaretlenir */
+  errorAtomIds?: Set<string>;
 } & React.SVGProps<SVGSVGElement>;
 
 /**
@@ -49,6 +51,7 @@ const MoleculeSvg = forwardRef<SVGSVGElement, Props>(function MoleculeSvg(
     selectionRect,
     hoverAtomId,
     stereo,
+    errorAtomIds,
     ...svgProps
   },
   ref,
@@ -118,6 +121,29 @@ const MoleculeSvg = forwardRef<SVGSVGElement, Props>(function MoleculeSvg(
           );
         })}
       </g>
+
+      {/* Degerlik hatasi: etiketlerin ustunde, kesikli kirmizi halka. Karbon
+          etiketsiz bir kose olsa bile hangi kosenin sorunlu oldugu gorunur. */}
+      {errorAtomIds && errorAtomIds.size > 0 && (
+        <g>
+          {molecule.atoms
+            .filter((a) => errorAtomIds.has(a.id))
+            .map((a) => (
+              <circle
+                key={a.id}
+                cx={a.x}
+                cy={a.y}
+                r={14}
+                fill="var(--danger)"
+                fillOpacity={0.1}
+                stroke="var(--danger)"
+                strokeWidth={1.8}
+                strokeDasharray="3 2"
+                style={{ pointerEvents: 'none' }}
+              />
+            ))}
+        </g>
+      )}
 
       {stereo && <StereoLayer molecule={molecule} stereo={stereo} />}
 

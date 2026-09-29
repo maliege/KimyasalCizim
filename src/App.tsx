@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from 'react';
 import Canvas from './editor/Canvas';
 import { editorReducer, initialEditorState } from './editor/editorReducer';
 import type { EditorState } from './editor/editorReducer';
@@ -9,7 +9,7 @@ import Toolbar from './panels/Toolbar';
 import InfoPanel from './panels/InfoPanel';
 import { useMoleculeInfo } from './rdkit/useMoleculeInfo';
 import { resolveKey } from './editor/keymap';
-import { molecularFormula } from './model/valence';
+import { molecularFormula, valenceErrors } from './model/valence';
 import { COMPACT_QUERY, useMediaQuery } from './ui/useMediaQuery';
 import type { Molecule } from './model/types';
 
@@ -39,6 +39,11 @@ export default function App() {
   const compact = useMediaQuery(COMPACT_QUERY);
   const [infoOpen, setInfoOpen] = useState(false);
   const formula = molecularFormula(state.molecule);
+
+  // Degerlik denetimi yerel ve ucuz: RDKit'i beklemeden her degisiklikte.
+  // useMemo: molekul degismedikce yeniden hesaplanmaz.
+  const errorAtoms = useMemo(() => valenceErrors(state.molecule), [state.molecule]);
+  const errorAtomSet = useMemo(() => new Set(errorAtoms), [errorAtoms]);
 
   // Tuval, kalan alani doldursun.
   useLayoutEffect(() => {
@@ -202,6 +207,7 @@ export default function App() {
             viewport={viewport}
             onViewportChange={setViewport}
             stereo={stereo}
+            errorAtomIds={errorAtomSet}
             svgRef={svgRef}
           />
         </main>
@@ -215,6 +221,7 @@ export default function App() {
             onImport={handleImport}
             svgRef={svgRef}
             compact={compact}
+            errorAtomIds={errorAtoms}
             onClose={compact ? () => setInfoOpen(false) : undefined}
           />
         )}

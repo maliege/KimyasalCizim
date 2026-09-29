@@ -1,3 +1,5 @@
+import { bondOrderSum, getAtom } from '../model/molecule';
+import { elementName } from '../model/elements';
 import { molecularFormula } from '../model/valence';
 import type { MoleculeInfo } from '../rdkit/RdkitService';
 import type { RdkitState } from '../rdkit/useRdkit';
@@ -13,6 +15,8 @@ type Props = {
   svgRef: React.RefObject<SVGSVGElement | null>;
   /** Dar ekran: sabit genislikli sutun yerine tam genislik alt panel */
   compact?: boolean;
+  /** Degerligi asilmis atomlar */
+  errorAtomIds?: string[];
   /** Dar ekranda paneli kapatma dugmesi gosterilir */
   onClose?: () => void;
 };
@@ -26,6 +30,7 @@ export default function InfoPanel({
   svgRef,
   compact = false,
   onClose,
+  errorAtomIds = [],
 }: Props) {
   const empty = molecule.atoms.length === 0;
   const formula = molecularFormula(molecule);
@@ -55,11 +60,31 @@ export default function InfoPanel({
         <>
           <Field label="Kapalı formül" value={formula} mono />
 
-          {info && !info.valid && (
-            <p style={styles.error}>
-              Yapı kimyasal olarak geçerli değil (valans hatası olabilir). Çizime devam
-              edebilirsiniz.
-            </p>
+          {errorAtomIds.length > 0 ? (
+            // Hangi atomun sorunlu oldugunu soyluyoruz; ogrenci icin asil
+            // bilgi bu. Atomlar tuvalde de kirmizi halkayla isaretli.
+            <div style={styles.error}>
+              <strong>Değerlik aşıldı</strong> (tuvalde kırmızı halkalı):
+              <ul style={styles.errorList}>
+                {errorAtomIds.map((id) => {
+                  const atom = getAtom(molecule, id);
+                  if (!atom) return null;
+                  return (
+                    <li key={id}>
+                      {elementName(atom.element)} ({atom.element}) — {bondOrderSum(molecule, id)}{' '}
+                      bağ
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ) : (
+            info &&
+            !info.valid && (
+              <p style={styles.error}>
+                Yapı kimyasal olarak geçerli değil. Çizime devam edebilirsiniz.
+              </p>
+            )
           )}
 
           <Field
@@ -183,6 +208,7 @@ const styles: Record<string, React.CSSProperties> = {
   title: { fontSize: 13, margin: '16px 0 10px' },
   subtitle: { fontSize: 11, textTransform: 'uppercase', color: 'var(--muted)', margin: '14px 0 6px' },
   muted: { fontSize: 12, color: 'var(--muted)' },
+  errorList: { margin: '4px 0 0', paddingLeft: 18 },
   error: { fontSize: 11, color: 'var(--danger)', lineHeight: 1.5 },
   fieldHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' },
   fieldLabel: { fontSize: 10, textTransform: 'uppercase', color: 'var(--muted)', letterSpacing: 0.4 },
