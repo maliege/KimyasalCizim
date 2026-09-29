@@ -42,7 +42,12 @@ export default function InfoPanel({
           ▾ Bilgi panelini kapat
         </button>
       )}
-      <ExportBar molecule={molecule} onImport={onImport} svgRef={svgRef} />
+      <ExportBar
+        molecule={molecule}
+        smiles={info?.valid ? info.smiles : null}
+        onImport={onImport}
+        svgRef={svgRef}
+      />
 
       <h2 style={styles.title}>Molekül bilgisi</h2>
 

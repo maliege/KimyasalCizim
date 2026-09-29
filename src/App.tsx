@@ -9,6 +9,10 @@ import Toolbar from './panels/Toolbar';
 import InfoPanel from './panels/InfoPanel';
 import { useMoleculeInfo } from './rdkit/useMoleculeInfo';
 import { resolveKey } from './editor/keymap';
+import { parseShareHash } from './editor/shareLink';
+import { fromMolfile } from './model/molfile';
+import { molblockFromSmiles } from './rdkit/RdkitService';
+import { useRdkit } from './rdkit/useRdkit';
 import { molecularFormula, valenceErrors } from './model/valence';
 import { COMPACT_QUERY, useMediaQuery } from './ui/useMediaQuery';
 import type { Molecule } from './model/types';
@@ -159,6 +163,38 @@ export default function App() {
     [size],
   );
 
+  // Paylasim baglantisi: adres #smiles=... tasiyorsa o yapiyi ac.
+  //
+  // Yapi normal bir duzenleme adimi olarak yuklenir; kullanicinin kendi
+  // cizimi kaybolmaz, Ctrl+Z ile geri gelir. Adres parcasini hemen
+  // temizliyoruz: yoksa sayfa her yenilendiginde kullanicinin son hali
+  // yerine yine bagladaki yapi acilirdi.
+  const { status: rdkitStatus, rdkit } = useRdkit();
+  const [notice, setNotice] = useState<string | null>(null);
+  useEffect(() => {
+    if (rdkitStatus !== 'ready' || size.width <= 1) return;
+
+    const loadFromHash = () => {
+      const { smiles } = parseShareHash(window.location.hash);
+      if (!smiles) return;
+      history.replaceState(null, '', window.location.pathname + window.location.search);
+
+      const molblock = molblockFromSmiles(rdkit, smiles);
+      if (!molblock) {
+        setNotice(`Bağlantıdaki yapı okunamadı: ${smiles}`);
+        return;
+      }
+      handleImport(fromMolfile(molblock));
+      setNotice(null);
+    };
+
+    loadFromHash();
+    // Uygulama acikken yeni bir baglanti yapistirilirsa sayfa yenilenmez;
+    // yalnizca adres parcasi degisir.
+    window.addEventListener('hashchange', loadFromHash);
+    return () => window.removeEventListener('hashchange', loadFromHash);
+  }, [rdkitStatus, rdkit, handleImport, size.width]);
+
   return (
     <div style={styles.app}>
       <header style={styles.header}>
@@ -199,6 +235,11 @@ export default function App() {
           ref={canvasBoxRef}
           style={compact ? { ...styles.canvasBox, order: -1 } : styles.canvasBox}
         >
+          {notice && (
+            <button type="button" style={styles.notice} onClick={() => setNotice(null)}>
+              {notice} <span style={{ opacity: 0.6 }}>✕</span>
+            </button>
+          )}
           <Canvas
             state={state}
             dispatch={dispatch}
@@ -265,5 +306,28 @@ const styles: Record<string, React.CSSProperties> = {
   },
   body: { display: 'flex', flex: 1, minHeight: 0 },
   bodyCompact: { display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 },
-  canvasBox: { flex: 1, minWidth: 0, minHeight: 0, overflow: 'hidden', background: '#fff' },
+  canvasBox: {
+    flex: 1,
+    minWidth: 0,
+    minHeight: 0,
+    overflow: 'hidden',
+    background: '#fff',
+    position: 'relative',
+  },
+  notice: {
+    position: 'absolute',
+    top: 10,
+    left: '50%',
+    transform: 'translateX(-50%)',
+    maxWidth: 'calc(100% - 24px)',
+    padding: '8px 12px',
+    fontSize: 12,
+    color: 'var(--danger)',
+    background: '#fff',
+    border: '1px solid var(--danger)',
+    borderRadius: 6,
+    cursor: 'pointer',
+    zIndex: 5,
+    boxShadow: '0 4px 14px rgba(0,0,0,0.08)',
+  },
 };

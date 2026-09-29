@@ -4,19 +4,23 @@ import { cleanupCoords, molblockFromSmiles } from '../rdkit/RdkitService';
 import { useRdkit } from '../rdkit/useRdkit';
 import type { Molecule } from '../model/types';
 import ExampleGallery from './ExampleGallery';
+import { buildShareUrl } from '../editor/shareLink';
 
 type Props = {
   molecule: Molecule;
+  /** RDKit'in kanonik SMILES'i; yoksa (bos ya da gecersiz yapi) paylasim kapali */
+  smiles?: string | null;
   onImport: (molecule: Molecule) => void;
   svgRef: React.RefObject<SVGSVGElement | null>;
 };
 
-export default function ExportBar({ molecule, onImport, svgRef }: Props) {
+export default function ExportBar({ molecule, smiles: currentSmiles, onImport, svgRef }: Props) {
   const { status, rdkit } = useRdkit();
   const fileRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [smiles, setSmiles] = useState('');
   const [galleryOpen, setGalleryOpen] = useState(false);
+  const [shared, setShared] = useState<'kopyalandi' | 'paylasildi' | null>(null);
   const empty = molecule.atoms.length === 0;
 
   /** Tuvalin merkezi — iceri aktarilan yapiyi oraya oturtuyoruz. */
@@ -39,6 +43,32 @@ export default function ExportBar({ molecule, onImport, svgRef }: Props) {
     setError(null);
     onImport(centerMolecule(fromMolfile(molblock), canvasCenter()));
     return true;
+  }
+
+  /**
+   * Paylasim baglantisi: telefonda isletim sisteminin paylasim penceresi
+   * (WhatsApp, e-posta…), masaustunde panoya kopyalama. Masaustu tarayicilarin
+   * cogu da navigator.share sunuyor ama orada kullanicinin bekledigi pano.
+   */
+  async function handleShare() {
+    if (!currentSmiles) return;
+    const url = buildShareUrl(window.location.href, currentSmiles);
+    const touch = window.matchMedia('(pointer: coarse)').matches;
+    try {
+      if (touch && navigator.share) {
+        await navigator.share({ title: 'KimyasalÇizim', url });
+        setShared('paylasildi');
+      } else {
+        await navigator.clipboard.writeText(url);
+        setShared('kopyalandi');
+      }
+      setError(null);
+    } catch (err) {
+      // Kullanici paylasim penceresini kapattiysa hata degil.
+      if (err instanceof DOMException && err.name === 'AbortError') return;
+      setError('Bağlantı kopyalanamadı: ' + url);
+    }
+    setTimeout(() => setShared(null), 2000);
   }
 
   function handleSmiles() {
@@ -125,6 +155,15 @@ export default function ExportBar({ molecule, onImport, svgRef }: Props) {
           onClick={() => setGalleryOpen(true)}
         >
           Örnekler
+        </button>
+        <button
+          type="button"
+          style={styles.button}
+          disabled={!currentSmiles}
+          title="Bu yapıyı açan bir bağlantı üret"
+          onClick={() => void handleShare()}
+        >
+          {shared === 'kopyalandi' ? '✓ Kopyalandı' : shared === 'paylasildi' ? '✓ Paylaşıldı' : '🔗 Bağlantı'}
         </button>
       </div>
 
