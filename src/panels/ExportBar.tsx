@@ -6,6 +6,11 @@ import type { Molecule } from '../model/types';
 import ExampleGallery from './ExampleGallery';
 import { resolveThemeVars } from '../render/theme';
 import { buildShareUrl } from '../editor/shareLink';
+import { findLocalName, looksLikeSmiles } from '../model/localNames';
+import { PubChemError, compoundUrl, lookupPubChem } from '../net/pubchem';
+
+/** PubChem yavas yanit verirse arayuz sonsuza dek beklemesin. */
+const LOOKUP_TIMEOUT_MS = 12_000;
 
 type Props = {
   molecule: Molecule;
@@ -21,6 +26,11 @@ export default function ExportBar({ molecule, smiles: currentSmiles, onImport, s
   const [error, setError] = useState<string | null>(null);
   const [smiles, setSmiles] = useState('');
   const [galleryOpen, setGalleryOpen] = useState(false);
+  /** Son aramanin nereden cozuldugu — hangi yorumun secildigi gorunsun. */
+  const [found, setFound] = useState<{ text: string; url?: string } | null>(null);
+  const [searching, setSearching] = useState(false);
+  /** Suren PubChem aramasi; yeni arama eskisini iptal eder. */
+  const lookupRef = useRef<AbortController | null>(null);
   const [shared, setShared] = useState<'kopyalandi' | 'paylasildi' | null>(null);
   const empty = molecule.atoms.length === 0;
 
@@ -72,9 +82,71 @@ export default function ExportBar({ molecule, smiles: currentSmiles, onImport, s
     setTimeout(() => setShared(null), 2000);
   }
 
-  function handleSmiles() {
+  /**
+   * Kutudaki girdiyi yapiya cevirir, sirasiyla:
+   * 1) yerel Turkce ad (galeri + alistirmalar) — agsiz, aninda
+   * 2) SMILES
+   * 3) PubChem'de ad (Ingilizce)
+   */
+  async function handleSmiles() {
     const input = smiles.trim();
-    if (input && loadSmiles(input)) setSmiles('');
+    if (!input) return;
+    lookupRef.current?.abort();
+    setFound(null);
+    setError(null);
+    if (status !== 'ready') {
+      setError('Kimya motoru henüz hazır değil.');
+      return;
+    }
+
+    const local = findLocalName(input);
+    if (local) {
+      if (loadSmiles(local.smiles)) {
+        setSmiles('');
+        setFound({ text: `${local.name} — yerel listeden` });
+      }
+      return;
+    }
+
+    if (looksLikeSmiles(input) && molblockFromSmiles(rdkit, input)) {
+      if (loadSmiles(input)) setSmiles('');
+      return;
+    }
+
+    const controller = new AbortController();
+    lookupRef.current = controller;
+    const timer = setTimeout(() => controller.abort(), LOOKUP_TIMEOUT_MS);
+    setSearching(true);
+    try {
+      const hit = await lookupPubChem(input, { signal: controller.signal });
+      if (!hit) {
+        setError(
+          `“${input}” bulunamadı. PubChem İngilizce adla arar: örneğin morfin yerine morphine deneyin.`,
+        );
+        return;
+      }
+      if (loadSmiles(hit.smiles)) {
+        setSmiles('');
+        setFound({ text: `PubChem: ${hit.title ?? input}`, url: compoundUrl(hit.cid) });
+      }
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        // Yeni bir arama bunu iptal ettiyse sessiz kal; zaman asimiysa soyle.
+        if (lookupRef.current === controller) setError('PubChem zaman aşımına uğradı.');
+        return;
+      }
+      setError(
+        err instanceof PubChemError
+          ? `${err.message} Çevrimdışıysanız yapıyı SMILES ile girebilirsiniz.`
+          : 'Arama başarısız oldu.',
+      );
+    } finally {
+      clearTimeout(timer);
+      if (lookupRef.current === controller) {
+        lookupRef.current = null;
+        setSearching(false);
+      }
+    }
   }
 
   function handleCleanup() {
@@ -193,24 +265,38 @@ export default function ExportBar({ molecule, smiles: currentSmiles, onImport, s
         <input
           type="text"
           value={smiles}
-          placeholder="SMILES yapıştır…"
+          placeholder="SMILES ya da ad (kafein, morphine…)"
+          title="Türkçe adlar yerel listeden bulunur; diğerleri PubChem'de İngilizce adla aranır (aranan ad NCBI'ye gönderilir)."
           spellCheck={false}
           style={styles.smilesInput}
           onChange={(e) => setSmiles(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === 'Enter') handleSmiles();
+            if (e.key === 'Enter') void handleSmiles();
           }}
         />
         <button
           type="button"
           style={styles.button}
           disabled={!smiles.trim()}
-          title="SMILES'ten yapı oluştur (tuvaldekinin yerine geçer)"
-          onClick={handleSmiles}
+          title="Yapıyı bul ve çiz (tuvaldekinin yerine geçer)"
+          onClick={() => void handleSmiles()}
         >
-          Çiz
+          {searching ? 'Aranıyor…' : 'Çiz'}
         </button>
       </div>
+
+      {found && (
+        <p style={styles.found}>
+          ✓{' '}
+          {found.url ? (
+            <a href={found.url} target="_blank" rel="noopener noreferrer" style={styles.link}>
+              {found.text}
+            </a>
+          ) : (
+            found.text
+          )}
+        </p>
+      )}
 
       {error && <p style={styles.error}>{error}</p>}
     </div>
@@ -308,5 +394,7 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: 'pointer',
     color: 'var(--text)',
   },
+  found: { fontSize: 11, color: 'var(--muted)', margin: '4px 0 0' },
+  link: { color: 'var(--accent)' },
   error: { fontSize: 11, color: 'var(--danger)', marginTop: 6, lineHeight: 1.4 },
 };

@@ -76,7 +76,7 @@ Dönüştürücü (`sharp`) `npx` ile geçici olarak çalışır; kalıcı bağ�
 | **Çoklu seçim** | «Seç ve taşı» ile boş alanda sürükleyerek kutu çizin; seçimi topluca taşıyın |
 | **Yakınlaştırma** | Fare tekerleği (imlecin altındaki nokta sabit kalır) |
 | **Kaydırma** | Ctrl+sürükleme veya orta fare tuşu |
-| **SMILES'ten çizim** | Sağ paneldeki kutuya yapıştırıp «Çiz» |
+| **SMILES ya da isimden çizim** | Sağ paneldeki kutuya SMILES ya da ad yazıp «Çiz» — ayrıntı aşağıda |
 | **Örnek galerisi** | Sağ panelde «Örnekler» — 24 hazır molekül (aspirin, kafein, glikoz…) |
 | Yük / stereo | İlgili aracı seçip atoma ya da bağa tıklayın |
 | **Zincir** | Zincir aracıyla sürükleyin: sürükledikçe uzayan zikzak karbon zinciri |
@@ -117,6 +117,20 @@ Ana grup elementlerinin değerliği biliniyor, hidrojenleri otomatik hesaplanıy
 uydurmak yanıltıcı olurdu; organometalik yapılarda istenen davranış budur.
 
 Çizim **tarayıcıda otomatik saklanır** — sekmeyi kapatıp geri dönünce kaldığınız yerden devam edersiniz.
+
+### İsimden yapı
+
+Sağ paneldeki kutu üç tür girdiyi anlar ve şu sırayla dener:
+
+1. **Türkçe ad** (kafein, glikoz, asetilen…): galeri ve alıştırmalardaki ~40
+   molekül yerel listeden, **internetsiz** ve anında bulunur.
+2. **SMILES** (`CCO`, `c1ccccc1`…)
+3. **PubChem'de ad** (morphine, serotonin, acetic acid…). PubChem yalnız
+   İngilizce adları tanır: "morfin" bulunmaz, "morphine" bulunur. Bulunan
+   yapının PubChem sayfasına bağlantı verilir.
+
+Yalnız üçüncü adımda ağa çıkılır ve yalnız aranan ad NCBI'ye (ABD) gönderilir.
+Çevrimdışıyken yerel adlar ve SMILES çalışmaya devam eder.
 
 ### Molekülü anlamak
 
