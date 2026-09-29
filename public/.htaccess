@@ -1,0 +1,73 @@
+# KimyasalÇizim — Apache yapılandırması (Bluehost gibi paylaşımlı hosting için)
+#
+# Bu dosya public/ altında durur, Vite her derlemede dist/ içine kopyalar.
+# Her blok <IfModule> ile korunuyor: ilgili modül sunucuda yoksa kural
+# sessizce atlanır, site 500 hatası vermez.
+
+# --- HTTPS'e yönlendir ------------------------------------------------------
+# Service worker yalnızca güvenli bağlamda çalışır. http:// ile gelen ziyaretçi
+# uygulamayı kuramaz ve çevrimdışı desteği alamaz.
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  # İkinci koşul, sunucu bir ters vekilin arkasındaysa gereklidir; o durumda
+  # %{HTTPS} "off" görünür ama bağlantı aslında güvenlidir.
+  RewriteCond %{HTTPS} !=on
+  RewriteCond %{HTTP:X-Forwarded-Proto} !=https
+  RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+</IfModule>
+
+# --- MIME türleri -----------------------------------------------------------
+<IfModule mod_mime.c>
+  # RDKit, WASM'ı instantiateStreaming ile yükler. Doğru başlığı görmezse
+  # daha yavaş bir yola düşer ve konsola uyarı yazar.
+  AddType application/wasm .wasm
+  AddType application/manifest+json .webmanifest
+</IfModule>
+
+# --- Sıkıştırma -------------------------------------------------------------
+# WASM 6,4 MB'tan ~2,1 MB'a iner. Telefonda ilk açılış için belirleyici.
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE application/wasm
+  AddOutputFilterByType DEFLATE application/javascript text/javascript
+  AddOutputFilterByType DEFLATE text/css text/html text/plain
+  AddOutputFilterByType DEFLATE application/json application/manifest+json
+  AddOutputFilterByType DEFLATE image/svg+xml
+</IfModule>
+
+# --- Önbellek ---------------------------------------------------------------
+# Sıralama önemli: aynı dosyaya birden çok kural uyarsa sonuncusu kazanır,
+# bu yüzden en dar kapsamlı kurallar en sonda.
+<IfModule mod_headers.c>
+
+  # Adında içerik hash'i taşıyan dosyalar (assets/index-DlRuQ_MO.js gibi).
+  # İçerik değişirse ad da değişir, dolayısıyla kalıcı önbelleklenebilir.
+  # Desen bilerek dar: RDKit_minimal.js ve sw.js buna uymaz.
+  <FilesMatch "-[A-Za-z0-9_-]{8,}\.(js|css)$">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+
+  # İkonlar nadiren değişir ama adları sabit; bir ay makul.
+  <FilesMatch "\.(png|svg|ico)$">
+    Header set Cache-Control "public, max-age=2592000"
+  </FilesMatch>
+
+  # RDKit dosyalarının adı sabit ve sürüm bilgisi taşımaz. Uzun süre
+  # önbelleklenirse kütüphane yükseltildiğinde eski sürüm takılı kalır.
+  # Bir gün sonra yeniden doğrulansın; zaten service worker da önbellekliyor.
+  <FilesMatch "^RDKit_minimal\.(js|wasm)$">
+    Header set Cache-Control "public, max-age=86400, must-revalidate"
+  </FilesMatch>
+
+  # En kritik kural: sw.js ve index.html önbelleklenirse yeni sürüm
+  # kullanıcıya hiç ulaşmaz. Güncelleme yüklersiniz, herkes eskide kalır ve
+  # ortada bir hata da görünmez.
+  <FilesMatch "^(sw\.js|index\.html|manifest\.webmanifest)$">
+    Header set Cache-Control "no-cache, must-revalidate"
+  </FilesMatch>
+
+</IfModule>
+
+# --- Dizin listelemeyi kapat ------------------------------------------------
+<IfModule mod_autoindex.c>
+  Options -Indexes
+</IfModule>

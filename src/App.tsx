@@ -179,9 +179,21 @@ export default function App() {
       </header>
 
       <div style={compact ? styles.bodyCompact : styles.body}>
-        {/* Dar ekranda tuval once gelir, arac seridi altina duser (basparmak
-            menzili); genis ekranda klasik uc sutun. */}
-        <main ref={canvasBoxRef} style={styles.canvasBox}>
+        {/* DOM sirasi genis ekranin sirasi: arac sutunu solda, tuval ortada,
+            bilgi sagda. Dar ekranda tuvale `order: -1` verilerek one alinir,
+            boylece arac seridi basparmak menziline, altina duser. */}
+        <Toolbar
+          state={state}
+          dispatch={dispatch}
+          onZoom={handleZoom}
+          onFit={handleFit}
+          compact={compact}
+        />
+
+        <main
+          ref={canvasBoxRef}
+          style={compact ? { ...styles.canvasBox, order: -1 } : styles.canvasBox}
+        >
           <Canvas
             state={state}
             dispatch={dispatch}
@@ -193,14 +205,6 @@ export default function App() {
             svgRef={svgRef}
           />
         </main>
-
-        <Toolbar
-          state={state}
-          dispatch={dispatch}
-          onZoom={handleZoom}
-          onFit={handleFit}
-          compact={compact}
-        />
 
         {(!compact || infoOpen) && (
           <InfoPanel
