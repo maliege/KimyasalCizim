@@ -15,6 +15,11 @@ export default defineConfig({
     VitePWA({
       // Yeni surum bulununca sessizce guncelle; kullanicidan onay istemiyoruz.
       registerType: 'autoUpdate',
+      // manifest.json: varsayilan .webmanifest uzantisini IIS tanimiyor ve dosya
+      // dursa bile 404 donuyor (chemdraw.maege.tr, IIS 10). .json'u IIS
+      // tanidigi icin sunucuda web.config gerekmiyor. web.config ayni uygulama
+      // havuzundaki Blazor sitesini (maege.tr) cokertmisti; bkz. deploy/iis/.
+      manifestFilename: 'manifest.json',
       includeAssets: ['apple-touch-icon.png'],
       manifest: {
         name: 'KimyasalÇizim — 2B Kimyasal Yapı Editörü',

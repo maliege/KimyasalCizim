@@ -39,17 +39,19 @@ Yeni sürümler sessizce devralınır (`registerType: 'autoUpdate'`).
 > çalışır. `dist/` klasörünün **içindekileri** statik olarak sunmanız yeterli;
 > sunucu tarafı yok.
 >
-> Sunucu yapılandırması iki dosyada, ikisi de derlemeyle `dist/`'e gelir:
+> **IIS (Windows hosting, `chemdraw.maege.tr`):** ek dosya gerekmez. Manifest
+> bilerek `manifest.json` adıyla üretilir, çünkü IIS `.webmanifest` uzantısını
+> tanımaz ve dosya dursa bile 404 verir. HTTPS yönlendirmesini Plesk'teki
+> "HTTP'den HTTPS'e kalıcı yönlendirme" ayarından açın.
 >
-> | Sunucu | Dosya |
-> |---|---|
-> | Apache (Bluehost vb.) | `.htaccess` |
-> | IIS (Windows hosting, `chemdraw.maege.tr`) | `web.config` |
+> ⚠️ `deploy/iis/web.config` dosyasını, site başka bir uygulamayla **aynı IIS
+> uygulama havuzunu paylaşıyorsa yüklemeyin.** Paylaşılan havuzda yüklendiğinde
+> `maege.tr` (Blazor Server) 503 ile çöktü; yalnız Blazor'u yeniden yayımlamak
+> düzeltti. Dosya bu yüzden derlemeye girmiyor.
 >
-> IIS'te `web.config` **şart**: IIS tanımadığı uzantıları sunmaz ve
-> `manifest.webmanifest` 404 verir; manifest olmadan tarayıcı «Yükle»
-> seçeneğini hiç göstermez. İkisi de gizli ya da "sistem" dosyası gibi
-> görünebilir; yükleme aracında gizli dosyaları göster seçeneğini açın.
+> **Apache (Bluehost vb.):** `dist/` içindeki `.htaccess` sıkıştırma, MIME türleri,
+> HTTPS ve önbellek kurallarını getirir. Gizli dosya olduğu için yükleme aracında
+> gizli dosyaları göster seçeneğini açın.
 
 İkonlar `scripts/*.svg` dosyalarından üretilir ve depoya işlenir:
 
