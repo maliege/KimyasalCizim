@@ -380,3 +380,21 @@ describe('previewMove ve finishMove', () => {
     expect(result.atoms).toHaveLength(3);
   });
 });
+
+describe('resolveTap · izotop aracı', () => {
+  it('karbona tıkladıkça ¹³C → ¹⁴C → doğal döner', () => {
+    let { mol, a } = ethane();
+    const beklenen = [13, 14, undefined];
+    for (const iso of beklenen) {
+      const outcome = resolveTap(mol, { x: 0, y: 0 }, ctx({ tool: 'isotope' }));
+      if (outcome.kind !== 'commit') throw new Error('commit bekleniyordu');
+      mol = outcome.molecule;
+      expect(getAtom(mol, a)!.isotope).toBe(iso);
+    }
+  });
+
+  it('izotop tablosunda olmayan elementte bir şey yapmaz', () => {
+    const fe = addAtom(emptyMolecule(), { element: 'Fe', x: 0, y: 0 }).molecule;
+    expect(resolveTap(fe, { x: 0, y: 0 }, ctx({ tool: 'isotope' })).kind).toBe('none');
+  });
+});

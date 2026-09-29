@@ -1,5 +1,7 @@
 import { deleteAtoms, emptyMolecule, extractFragment, insertFragment } from '../model/molecule';
 import type { BondOrder, Molecule } from '../model/types';
+import { transformAtoms } from '../model/transform';
+import type { TransformOp } from '../model/transform';
 
 export type ToolId =
   | 'select'
@@ -8,6 +10,7 @@ export type ToolId =
   | 'erase'
   | 'chargePlus'
   | 'chargeMinus'
+  | 'isotope'
   | 'wedge'
   | 'hash'
   | 'template'
@@ -60,7 +63,9 @@ export type EditorAction =
   | { type: 'redo' }
   | { type: 'clear' }
   | { type: 'setTool'; tool: ToolId }
-  | { type: 'setElement'; element: string }
+  /** replacePrevious: iki harfli klavye girisinde ilk harfin (C → Cl) son
+   *  kullanilanlara karismamasi icin onceki kaydin yerine gecer */
+  | { type: 'setElement'; element: string; replacePrevious?: boolean }
   | { type: 'setBondOrder'; order: BondOrder }
   | { type: 'setTemplate'; templateId: string }
   | { type: 'setGroup'; groupId: string }
@@ -68,7 +73,9 @@ export type EditorAction =
   | { type: 'selectAll' }
   | { type: 'deleteSelection' }
   | { type: 'copySelection' }
-  | { type: 'paste'; offset?: { x: number; y: number } };
+  | { type: 'paste'; offset?: { x: number; y: number } }
+  /** Secimi (yoksa tum molekulu) dondur ya da aynala */
+  | { type: 'transform'; op: TransformOp };
 
 /** Geri alma yigininda tutulacak en fazla adim. */
 const HISTORY_LIMIT = 100;
@@ -131,6 +138,10 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       return { ...commit(state, molecule), selectedAtoms: atomIds };
     }
 
+    case 'transform':
+      if (state.molecule.atoms.length === 0) return state;
+      return commit(state, transformAtoms(state.molecule, state.selectedAtoms, action.op));
+
     case 'selectAll':
       return { ...state, selectedAtoms: state.molecule.atoms.map((a) => a.id) };
 
@@ -144,7 +155,9 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         tool: 'atom',
         recentElements: [
           action.element,
-          ...state.recentElements.filter((e) => e !== action.element),
+          ...(action.replacePrevious ? state.recentElements.slice(1) : state.recentElements).filter(
+            (e) => e !== action.element,
+          ),
         ].slice(0, RECENT_LIMIT),
       };
     case 'setBondOrder':

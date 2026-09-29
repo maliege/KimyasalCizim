@@ -92,3 +92,18 @@ describe('editorReducer araç seçimi', () => {
     expect(state.tool).toBe('bond');
   });
 });
+
+describe('son kullanılan elementler', () => {
+  it('replacePrevious ilk kaydın yerine geçer (C → Cl)', () => {
+    let state = editorReducer(initialEditorState, { type: 'setElement', element: 'Fe' });
+    state = editorReducer(state, { type: 'setElement', element: 'C' });
+    state = editorReducer(state, { type: 'setElement', element: 'Cl', replacePrevious: true });
+    expect(state.recentElements).toEqual(['Cl', 'Fe']);
+  });
+
+  it('replacePrevious olmadan geçmiş korunur', () => {
+    let state = editorReducer(initialEditorState, { type: 'setElement', element: 'Fe' });
+    state = editorReducer(state, { type: 'setElement', element: 'Zn' });
+    expect(state.recentElements).toEqual(['Zn', 'Fe']);
+  });
+});

@@ -18,6 +18,7 @@ import { placeTemplate } from '../model/templates';
 import { placeGroup } from '../model/groups';
 import type { AtomId, BondOrder, Molecule } from '../model/types';
 import type { ToolId } from './editorReducer';
+import { hasCommonIsotopes, nextIsotope } from '../model/isotopes';
 
 /**
  * Fare jestlerinin *saf* karar mantigi.
@@ -140,6 +141,16 @@ export function resolveTap(mol: Molecule, point: Point, ctx: TapContext): TapOut
       return {
         kind: 'commit',
         molecule: updateAtom(mol, hitAtomId, { charge: atom.charge + delta }),
+      };
+    }
+
+    case 'isotope': {
+      if (!hitAtomId) return { kind: 'none' };
+      const atom = getAtom(mol, hitAtomId)!;
+      if (!hasCommonIsotopes(atom.element)) return { kind: 'none' };
+      return {
+        kind: 'commit',
+        molecule: updateAtom(mol, hitAtomId, { isotope: nextIsotope(atom.element, atom.isotope) }),
       };
     }
 

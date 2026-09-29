@@ -7,6 +7,7 @@ import type { EditorAction, EditorState, ToolId } from '../editor/editorReducer'
 import type { BondOrder } from '../model/types';
 import { elementColor } from '../render/style';
 import ElementPicker from './ElementPicker';
+import type { TransformOp } from '../model/transform';
 
 type Props = {
   state: EditorState;
@@ -22,6 +23,7 @@ const TOOLS: { id: ToolId; label: string; hint: string }[] = [
   { id: 'erase', label: '⌫', hint: 'Sil (E)' },
   { id: 'chargePlus', label: '＋', hint: 'Yükü artır' },
   { id: 'chargeMinus', label: '－', hint: 'Yükü azalt' },
+  { id: 'isotope', label: '¹³C', hint: 'İzotop: atoma tıkladıkça değişir (¹²C → ¹³C → ¹⁴C → ¹²C)' },
   { id: 'wedge', label: '◤', hint: 'Kama bağ, öne doğru (W)' },
   { id: 'hash', label: '⦀', hint: 'Kesikli bağ, arkaya (H)' },
 ];
@@ -33,6 +35,14 @@ const BOND_ORDERS: { order: BondOrder; label: string; hint: string }[] = [
 ];
 
 const ELEMENTS = ['C', 'N', 'O', 'S', 'P', 'F', 'Cl', 'Br', 'I', 'H'];
+
+/** 30° adimlar cizimi aci izgarasinda tutar (bag araci da 30°'ye yakalar). */
+const TRANSFORMS: { label: string; hint: string; op: TransformOp }[] = [
+  { label: '⟲', hint: '30° sola döndür', op: { kind: 'rotate', degrees: -30 } },
+  { label: '⟳', hint: '30° sağa döndür', op: { kind: 'rotate', degrees: 30 } },
+  { label: '⇆', hint: 'Yatay aynala', op: { kind: 'flip', axis: 'horizontal' } },
+  { label: '⇅', hint: 'Dikey aynala', op: { kind: 'flip', axis: 'vertical' } },
+];
 
 /**
  * Dokunma hedefi buyutulsun mu?
@@ -157,6 +167,21 @@ export default function Toolbar({ state, dispatch, onZoom, onFit, compact = fals
               wide={!compact}
             >
               {template.label}
+            </Button>
+          ))}
+        </div>
+      </Section>
+
+      <Section title="Dönüştür">
+        <div style={styles.grid}>
+          {TRANSFORMS.map(({ label, hint, op }) => (
+            <Button
+              key={hint}
+              title={`${hint} — seçimi, seçim yoksa tüm yapıyı`}
+              disabled={state.molecule.atoms.length === 0}
+              onClick={() => dispatch({ type: 'transform', op })}
+            >
+              {label}
             </Button>
           ))}
         </div>

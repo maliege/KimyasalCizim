@@ -18,7 +18,8 @@ import type { Verdict } from './model/exercises';
 import { toMolfile } from './model/molfile';
 import InfoPanel from './panels/InfoPanel';
 import { useMoleculeInfo } from './rdkit/useMoleculeInfo';
-import { resolveKey } from './editor/keymap';
+import { COMBINE_WINDOW_MS, resolveKey } from './editor/keymap';
+import { isElement } from './model/elements';
 import { findFunctionalGroup } from './model/functionalGroups';
 import { buildTaskUrl, parseShareHash } from './editor/shareLink';
 import { fromMolfile } from './model/molfile';
@@ -41,6 +42,8 @@ export default function App() {
   const [state, dispatch] = useReducer(editorReducer, initialEditorState, restoreState);
   const [viewport, setViewport] = useState<Viewport>(DEFAULT_VIEWPORT);
   const svgRef = useRef<SVGSVGElement>(null);
+  /** Iki harfli element girisi icin son basilan tus. Ref: degisince render gerekmez. */
+  const lastKey = useRef<{ key: string; time: number } | null>(null);
   const canvasBoxRef = useRef<HTMLDivElement>(null);
   // Sifirla basliyoruz ki "henuz olculmedi" durumu ayirt edilebilsin;
   // 800x600 gibi bir taban deger, sigdirma adimini yanlis olcuyle calistirir.
@@ -167,9 +170,22 @@ export default function App() {
         return;
       }
 
-      const action = resolveKey(e.key);
+      // Iki harfli simgeler icin son tusu kisa bir sure hatirliyoruz.
+      const now = performance.now();
+      const last = lastKey.current;
+      const previous = last && now - last.time < COMBINE_WINDOW_MS ? last.key : undefined;
+      lastKey.current = { key: e.key, time: now };
+
+      const action = resolveKey(e.key, previous);
       if (action.kind === 'tool') dispatch({ type: 'setTool', tool: action.tool });
-      else if (action.kind === 'element') dispatch({ type: 'setElement', element: action.element });
+      else if (action.kind === 'element') {
+        // Ilk harf tek basina bir element sectiyse (C → Cl) onu son kullanilanlardan
+        // cikar; secmediyse (Z → Zn) cikaracak bir sey yok, alakasiz bir kayit silinmesin.
+        const replacePrevious = action.combined && previous !== undefined && isElement(previous);
+        dispatch({ type: 'setElement', element: action.element, replacePrevious });
+        // Birlesen cift tuketildi; ucuncu bir harf onunla tekrar birlesmesin.
+        if (action.combined) lastKey.current = null;
+      }
     }
 
     window.addEventListener('keydown', onKeyDown);

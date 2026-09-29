@@ -25,16 +25,35 @@ const TOOL_KEYS: Record<string, ToolId> = {
 
 export type KeyAction =
   | { kind: 'tool'; tool: ToolId }
-  | { kind: 'element'; element: string }
+  /** combined: bir onceki buyuk harfle birlesip iki harfli simge oldu */
+  | { kind: 'element'; element: string; combined?: boolean }
   | { kind: 'none' };
 
-export function resolveKey(key: string): KeyAction {
+/** Iki harfli simge icin ikinci harfin beklendigi sure. */
+export const COMBINE_WINDOW_MS = 800;
+
+/**
+ * @param previous hemen once (COMBINE_WINDOW_MS icinde) basilan tus, varsa.
+ *   Buyuk harf + kucuk harf bir element olusturuyorsa (C+l → Cl, N+a → Na)
+ *   o secilir — ikinci harf bir arac kisayoluna denk gelse bile, cunku hizla
+ *   yazilan bir cift acikca simge kastediyor.
+ */
+export function resolveKey(key: string, previous?: string): KeyAction {
+  if (
+    previous &&
+    /^[A-Z]$/.test(previous) &&
+    /^[a-z]$/.test(key) &&
+    isElement(previous + key)
+  ) {
+    return { kind: 'element', element: previous + key, combined: true };
+  }
+
   const tool = TOOL_KEYS[key];
   if (tool) return { kind: 'tool', tool };
 
   // Yalniz tek harfli gercek simgeler; aksi halde 'D' veya 'Q' tusu tuvale
-  // uydurma bir element koyardi. Iki harfli simgeler (Cl, Br) bu yolla
-  // yazilamaz — palet ya da periyodik tablo uzerinden secilirler.
+  // uydurma bir element koyardi. Iki harfli simgeler yukaridaki birlestirme
+  // ile yazilir (C ardindan l → Cl).
   if (/^[A-Z]$/.test(key) && isElement(key)) {
     return { kind: 'element', element: key };
   }

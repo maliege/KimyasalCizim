@@ -47,3 +47,39 @@ describe('resolveKey', () => {
     }
   });
 });
+
+describe('iki harfli simgeler', () => {
+  it('büyük harfin ardından gelen küçük harfi birleştirir', () => {
+    expect(resolveKey('l', 'C')).toEqual({ kind: 'element', element: 'Cl', combined: true });
+    expect(resolveKey('r', 'B')).toEqual({ kind: 'element', element: 'Br', combined: true });
+    expect(resolveKey('e', 'F')).toEqual({ kind: 'element', element: 'Fe', combined: true });
+  });
+
+  it('ikinci harf araç kısayolu olsa da simge kazanır', () => {
+    // 'a' atom aracı, 'g' grup aracı, 'e' silgi — ama Na, Ag, Se birer element.
+    expect(resolveKey('a', 'N')).toMatchObject({ element: 'Na' });
+    expect(resolveKey('g', 'A')).toMatchObject({ element: 'Ag' });
+    expect(resolveKey('e', 'S')).toMatchObject({ element: 'Se' });
+  });
+
+  it('tek başına element olmayan büyük harfle de birleşir', () => {
+    // 'Z' ve 'M' tek harfli element değil ama Zn ve Mg öyle.
+    expect(resolveKey('n', 'Z')).toMatchObject({ element: 'Zn' });
+    expect(resolveKey('g', 'M')).toMatchObject({ element: 'Mg' });
+  });
+
+  it('element oluşturmayan çiftte normal davranır', () => {
+    // "Cq" element değil → 'q' hiçbir şey; "Ca" değil de "Cw" → 'w' kama aracı
+    expect(resolveKey('q', 'C')).toEqual({ kind: 'none' });
+    expect(resolveKey('w', 'C')).toEqual({ kind: 'tool', tool: 'wedge' });
+  });
+
+  it('önceki tuş küçük harfse birleştirmez', () => {
+    expect(resolveKey('a', 'n')).toEqual({ kind: 'tool', tool: 'atom' });
+  });
+
+  it('önceki tuş yoksa eski davranış', () => {
+    expect(resolveKey('a')).toEqual({ kind: 'tool', tool: 'atom' });
+    expect(resolveKey('C')).toEqual({ kind: 'element', element: 'C' });
+  });
+});
