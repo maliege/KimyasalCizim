@@ -23,6 +23,7 @@ type Props = {
   /** CIP stereo etiketleri (RDKit'ten, gecikmeli hesaplanir) */
   stereo?: StereoLabels | null;
   errorAtomIds?: Set<string>;
+  groupHighlight?: { color: string; atomIds: Set<string> } | null;
   /** Disa aktarma tuvale erisebilsin diye ref disaridan verilir. */
   svgRef: React.RefObject<SVGSVGElement | null>;
 };
@@ -53,6 +54,7 @@ export default function Canvas({
   onViewportChange,
   stereo,
   errorAtomIds,
+  groupHighlight,
   svgRef,
 }: Props) {
   const dragRef = useRef<Drag>(null);
@@ -333,6 +335,7 @@ export default function Canvas({
       hoverAtomId={hoverAtom}
       stereo={stereo}
       errorAtomIds={errorAtomIds}
+      groupHighlight={groupHighlight}
       highlight={{ atomIds: new Set(state.selectedAtoms) }}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}

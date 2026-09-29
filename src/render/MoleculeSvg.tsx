@@ -31,6 +31,8 @@ type Props = {
   stereo?: { atoms: Map<string, string>; bonds: Map<string, string> } | null;
   /** Degerligi asilmis atomlar — kirmizi halkayla isaretlenir */
   errorAtomIds?: Set<string>;
+  /** Secili fonksiyonel grubun atomlari — renkli serit ile vurgulanir */
+  groupHighlight?: { color: string; atomIds: Set<string> } | null;
 } & React.SVGProps<SVGSVGElement>;
 
 /**
@@ -52,6 +54,7 @@ const MoleculeSvg = forwardRef<SVGSVGElement, Props>(function MoleculeSvg(
     hoverAtomId,
     stereo,
     errorAtomIds,
+    groupHighlight,
     ...svgProps
   },
   ref,
@@ -66,6 +69,9 @@ const MoleculeSvg = forwardRef<SVGSVGElement, Props>(function MoleculeSvg(
       style={{ display: 'block', background: '#fff', touchAction: 'none' }}
       {...svgProps}
     >
+      {/* Grup vurgusu en altta: baglar ve etiketler ustunde okunakli kalsin */}
+      {groupHighlight && <GroupHighlightLayer molecule={molecule} highlight={groupHighlight} />}
+
       {/* Baglar once — etiketler ustlerine gelsin */}
       <g>
         {molecule.bonds.map((bond) => (
@@ -213,6 +219,45 @@ function StereoLayer({
         if (!a || !b) return null;
         return label(bondId, (a.x + b.x) / 2, (a.y + b.y) / 2 - 12, text);
       })}
+    </g>
+  );
+}
+
+/** Iki ucu da gruptaki baglara genis yari saydam serit, atomlara disk. */
+function GroupHighlightLayer({
+  molecule,
+  highlight,
+}: {
+  molecule: Molecule;
+  highlight: { color: string; atomIds: Set<string> };
+}) {
+  const { color, atomIds } = highlight;
+  return (
+    <g opacity={0.28} style={{ pointerEvents: 'none' }}>
+      {molecule.bonds
+        .filter((b) => atomIds.has(b.a1) && atomIds.has(b.a2))
+        .map((b) => {
+          const a = getAtom(molecule, b.a1);
+          const c = getAtom(molecule, b.a2);
+          if (!a || !c) return null;
+          return (
+            <line
+              key={b.id}
+              x1={a.x}
+              y1={a.y}
+              x2={c.x}
+              y2={c.y}
+              stroke={color}
+              strokeWidth={14}
+              strokeLinecap="round"
+            />
+          );
+        })}
+      {molecule.atoms
+        .filter((a) => atomIds.has(a.id))
+        .map((a) => (
+          <circle key={a.id} cx={a.x} cy={a.y} r={10} fill={color} />
+        ))}
     </g>
   );
 }

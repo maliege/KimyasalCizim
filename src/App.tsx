@@ -9,6 +9,7 @@ import Toolbar from './panels/Toolbar';
 import InfoPanel from './panels/InfoPanel';
 import { useMoleculeInfo } from './rdkit/useMoleculeInfo';
 import { resolveKey } from './editor/keymap';
+import { findFunctionalGroup } from './model/functionalGroups';
 import { parseShareHash } from './editor/shareLink';
 import { fromMolfile } from './model/molfile';
 import { molblockFromSmiles } from './rdkit/RdkitService';
@@ -36,7 +37,17 @@ export default function App() {
   const [size, setSize] = useState({ width: 0, height: 0 });
 
   // Tek bir RDKit hesabi hem paneli hem tuvaldeki stereo etiketlerini besler.
-  const { info, stereo, pending, status } = useMoleculeInfo(state.molecule);
+  const { info, stereo, groups, pending, status } = useMoleculeInfo(state.molecule);
+
+  // Panelde tiklanan fonksiyonel grup tuvalde renklendirilir. Molekul
+  // degisip grup artik yoksa vurgu kendiliginden kaybolur.
+  const [activeGroup, setActiveGroup] = useState<string | null>(null);
+  const groupHighlight = useMemo(() => {
+    const hit = activeGroup ? groups.find((g) => g.id === activeGroup) : undefined;
+    const def = activeGroup ? findFunctionalGroup(activeGroup) : undefined;
+    if (!hit || !def) return null;
+    return { color: def.color, atomIds: new Set(hit.matches.flat()) };
+  }, [activeGroup, groups]);
 
   // Dar ekranda uc sutun sigmaz: tuval tam genislik alir, bilgi paneli
   // istege bagli acilir.
@@ -249,6 +260,7 @@ export default function App() {
             onViewportChange={setViewport}
             stereo={stereo}
             errorAtomIds={errorAtomSet}
+            groupHighlight={groupHighlight}
             svgRef={svgRef}
           />
         </main>
@@ -263,6 +275,9 @@ export default function App() {
             svgRef={svgRef}
             compact={compact}
             errorAtomIds={errorAtoms}
+            groups={groups}
+            activeGroup={groupHighlight ? activeGroup : null}
+            onToggleGroup={(id) => setActiveGroup((cur) => (cur === id ? null : id))}
             onClose={compact ? () => setInfoOpen(false) : undefined}
           />
         )}
