@@ -6,13 +6,23 @@ import { loadMolecule, saveMolecule } from './editor/persistence';
 import { DEFAULT_VIEWPORT, fitTo, zoomAt } from './editor/viewport';
 import type { Viewport } from './editor/viewport';
 import Toolbar from './panels/Toolbar';
+import ExercisePanel from './panels/ExercisePanel';
+import {
+  EXERCISES,
+  evaluate,
+  findExercise,
+  formulaFromInchi,
+  nextExercise,
+} from './model/exercises';
+import type { Verdict } from './model/exercises';
+import { toMolfile } from './model/molfile';
 import InfoPanel from './panels/InfoPanel';
 import { useMoleculeInfo } from './rdkit/useMoleculeInfo';
 import { resolveKey } from './editor/keymap';
 import { findFunctionalGroup } from './model/functionalGroups';
-import { parseShareHash } from './editor/shareLink';
+import { buildTaskUrl, parseShareHash } from './editor/shareLink';
 import { fromMolfile } from './model/molfile';
-import { molblockFromSmiles } from './rdkit/RdkitService';
+import { identify, molblockFromSmiles } from './rdkit/RdkitService';
 import { useRdkit } from './rdkit/useRdkit';
 import { molecularFormula, valenceErrors } from './model/valence';
 import { COMPACT_QUERY, useMediaQuery } from './ui/useMediaQuery';
@@ -182,13 +192,80 @@ export default function App() {
   // yerine yine bagladaki yapi acilirdi.
   const { status: rdkitStatus, rdkit } = useRdkit();
   const [notice, setNotice] = useState<string | null>(null);
+
+  // --- Alistirma modu ---
+  const [exercise, setExercise] = useState<{
+    id: string;
+    verdict: Verdict | null;
+    hint: boolean;
+  } | null>(null);
+  // Oturum boyunca cozulen gorevler; sayfa yenilenince sifirlanir.
+  const [solved, setSolved] = useState<Set<string>>(() => new Set());
+  const [taskShare, setTaskShare] = useState<'kopyalandi' | null>(null);
+
+  /** Gorevi baslatir: tuval temizlenir (geri alinabilir), gorunum sifirlanir. */
+  const startExercise = useCallback((id: string) => {
+    if (!findExercise(id)) return;
+    setExercise({ id, verdict: null, hint: false });
+    dispatch({ type: 'clear' });
+    setViewport(DEFAULT_VIEWPORT);
+  }, []);
+
+  // Cizim degisince eski sonuc gecersizlesir; ogrenci yeniden kontrol eder.
+  useEffect(() => {
+    setExercise((ex) => (ex?.verdict ? { ...ex, verdict: null } : ex));
+  }, [state.molecule]);
+
+  const activeExercise = exercise ? findExercise(exercise.id) : undefined;
+
+  // Hedefin kimligi gorev basina bir kez hesaplanir.
+  const target = useMemo(
+    () =>
+      activeExercise && rdkitStatus === 'ready' ? identify(rdkit, activeExercise.smiles) : null,
+    [activeExercise, rdkitStatus, rdkit],
+  );
+
+  const handleCheck = () => {
+    if (!exercise || !target || rdkitStatus !== 'ready') return;
+    const empty = state.molecule.atoms.length === 0;
+    const drawn = empty ? null : identify(rdkit, toMolfile(state.molecule));
+    const verdict = evaluate(drawn, target, empty);
+    setExercise({ ...exercise, verdict });
+    if (verdict.kind === 'dogru') setSolved((prev) => new Set(prev).add(exercise.id));
+  };
+
+  const handleTaskShare = async () => {
+    if (!exercise) return;
+    try {
+      await navigator.clipboard.writeText(buildTaskUrl(window.location.href, exercise.id));
+      setTaskShare('kopyalandi');
+      setTimeout(() => setTaskShare(null), 2000);
+    } catch {
+      setNotice('Bağlantı kopyalanamadı.');
+    }
+  };
+
+  /** Ilk cozulmemis gorevden basla; hepsi cozulduyse bastan. */
+  const openExercises = () =>
+    startExercise((EXERCISES.find((e) => !solved.has(e.id)) ?? EXERCISES[0]).id);
   useEffect(() => {
     if (rdkitStatus !== 'ready' || size.width <= 1) return;
 
     const loadFromHash = () => {
-      const { smiles } = parseShareHash(window.location.hash);
-      if (!smiles) return;
+      const { smiles, task } = parseShareHash(window.location.hash);
+      if (!smiles && !task) return;
       history.replaceState(null, '', window.location.pathname + window.location.search);
+
+      if (task) {
+        if (findExercise(task)) {
+          startExercise(task);
+          setNotice(null);
+        } else {
+          setNotice(`Bağlantıdaki görev bulunamadı: ${task}`);
+        }
+        return;
+      }
+      if (!smiles) return;
 
       const molblock = molblockFromSmiles(rdkit, smiles);
       if (!molblock) {
@@ -204,7 +281,7 @@ export default function App() {
     // yalnizca adres parcasi degisir.
     window.addEventListener('hashchange', loadFromHash);
     return () => window.removeEventListener('hashchange', loadFromHash);
-  }, [rdkitStatus, rdkit, handleImport, size.width]);
+  }, [rdkitStatus, rdkit, handleImport, size.width, startExercise]);
 
   return (
     <div style={styles.app}>
@@ -228,6 +305,15 @@ export default function App() {
             Ctrl+sürükleme kaydırır
           </span>
         )}
+        <button
+          type="button"
+          style={{ ...styles.infoToggle, marginLeft: 'auto', ...(exercise ? styles.exerciseOn : {}) }}
+          aria-pressed={!!exercise}
+          onClick={() => (exercise ? setExercise(null) : openExercises())}
+          title="Şunu çizin görevleriyle pratik yapın"
+        >
+          🎓 {compact ? '' : 'Alıştırma'}
+        </button>
       </header>
 
       <div style={compact ? styles.bodyCompact : styles.body}>
@@ -242,10 +328,27 @@ export default function App() {
           compact={compact}
         />
 
-        <main
-          ref={canvasBoxRef}
-          style={compact ? { ...styles.canvasBox, order: -1 } : styles.canvasBox}
-        >
+        {/* Gorev seridi tuvalin UZERINE binmesin diye ayni sutunda, ustunde.
+            Olcum main'e bagli oldugu icin tuval kalan alani dogru alir. */}
+        <div style={compact ? { ...styles.centerColumn, order: -1 } : styles.centerColumn}>
+        {exercise && activeExercise && (
+          <ExercisePanel
+            exercise={activeExercise}
+            verdict={exercise.verdict}
+            hintVisible={exercise.hint}
+            targetFormula={target ? formulaFromInchi(target.inchi) : null}
+            solved={solved}
+            compact={compact}
+            onPick={startExercise}
+            onCheck={handleCheck}
+            onHint={() => setExercise({ ...exercise, hint: true })}
+            onNext={() => startExercise(nextExercise(exercise.id).id)}
+            onShare={() => void handleTaskShare()}
+            onExit={() => setExercise(null)}
+            shareState={taskShare}
+          />
+        )}
+        <main ref={canvasBoxRef} style={styles.canvasBox}>
           {notice && (
             <button type="button" style={styles.notice} onClick={() => setNotice(null)}>
               {notice} <span style={{ opacity: 0.6 }}>✕</span>
@@ -264,6 +367,7 @@ export default function App() {
             svgRef={svgRef}
           />
         </main>
+        </div>
 
         {(!compact || infoOpen) && (
           <InfoPanel
@@ -320,6 +424,12 @@ const styles: Record<string, React.CSSProperties> = {
     flexShrink: 0,
   },
   body: { display: 'flex', flex: 1, minHeight: 0 },
+  centerColumn: { display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0, minHeight: 0 },
+  exerciseOn: {
+    background: 'var(--accent)',
+    border: '1px solid var(--accent)',
+    color: '#fff',
+  },
   bodyCompact: { display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 },
   canvasBox: {
     flex: 1,

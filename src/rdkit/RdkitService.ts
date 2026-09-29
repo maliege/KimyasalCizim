@@ -238,6 +238,19 @@ function parseMatches(raw: string): number[][] {
   return Array.isArray(parsed) ? parsed.map((m) => m.atoms) : [];
 }
 
+/**
+ * Bir yapinin InChI ve InChIKey'i (SMILES ya da molblock). Alistirma modunda
+ * hedef ile cizimi karsilastirmak icin; gecersiz yapida null.
+ */
+export function identify(rdkit: RDKitModule, input: string): { inchi: string; inchiKey: string } | null {
+  return withMol(rdkit, input, (mol) => {
+    const inchi = mol.get_inchi();
+    if (!inchi) return null;
+    const inchiKey = rdkit.get_inchikey_for_inchi(inchi);
+    return inchiKey ? { inchi, inchiKey } : null;
+  });
+}
+
 /** SMILES icin gruplari bulur (testler ve tek seferlik kullanim icin). */
 export function functionalGroupsOfSmiles(rdkit: RDKitModule, smiles: string): FoundGroup[] | null {
   return withMol(rdkit, smiles, (mol) => findFunctionalGroups(rdkit, mol));

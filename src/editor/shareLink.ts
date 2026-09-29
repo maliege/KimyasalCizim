@@ -12,6 +12,8 @@
 
 export type ShareParams = {
   smiles?: string;
+  /** Alistirma gorevi kimligi: #gorev=etanol */
+  task?: string;
 };
 
 /** `#smiles=...` bicimindeki parcayi cozer. Bozuk girdide bos nesne doner. */
@@ -31,6 +33,7 @@ export function parseShareHash(hash: string): ShareParams {
     }
     if (!value) continue;
     if (key === 'smiles') params.smiles = value;
+    else if (key === 'gorev') params.task = value;
   }
   return params;
 }
@@ -40,4 +43,9 @@ export function buildShareUrl(base: string, smiles: string): string {
   // Tabandaki eski bir `#...` parcasini at; yoksa iki parca ust uste biner.
   const clean = base.split('#')[0];
   return `${clean}#smiles=${encodeURIComponent(smiles)}`;
+}
+
+/** Bir alistirma gorevini dogrudan acan adres (ogretmen paylasimi icin). */
+export function buildTaskUrl(base: string, taskId: string): string {
+  return `${base.split('#')[0]}#gorev=${encodeURIComponent(taskId)}`;
 }

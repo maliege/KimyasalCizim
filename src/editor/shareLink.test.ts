@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildShareUrl, parseShareHash } from './shareLink';
+import { buildShareUrl, buildTaskUrl, parseShareHash } from './shareLink';
 
 const BASE = 'https://maege.tr/';
 
@@ -60,5 +60,17 @@ describe('parseShareHash', () => {
 
   it('bozuk yüzde kodlamasında patlamaz', () => {
     expect(parseShareHash('#smiles=%E0%A4%A')).toEqual({});
+  });
+});
+
+describe('görev bağlantıları', () => {
+  it('#gorev parametresini okur', () => {
+    expect(parseShareHash('#gorev=etanol')).toEqual({ task: 'etanol' });
+  });
+
+  it('görev bağlantısı üretir ve geri okur', () => {
+    const url = buildTaskUrl('https://maege.tr/#smiles=CCO', 'l-alanin');
+    expect(url).toBe('https://maege.tr/#gorev=l-alanin');
+    expect(parseShareHash(new URL(url).hash)).toEqual({ task: 'l-alanin' });
   });
 });
