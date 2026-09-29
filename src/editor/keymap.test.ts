@@ -7,6 +7,7 @@ describe('resolveKey', () => {
     expect(resolveKey('s')).toEqual({ kind: 'tool', tool: 'select' });
     expect(resolveKey('b')).toEqual({ kind: 'tool', tool: 'bond' });
     expect(resolveKey('g')).toEqual({ kind: 'tool', tool: 'group' });
+    expect(resolveKey('c')).toEqual({ kind: 'tool', tool: 'chain' });
   });
 
   it('BÜYÜK harf elementi seçer', () => {
@@ -36,7 +37,7 @@ describe('resolveKey', () => {
 
   it('araç olmayan küçük harfleri yok sayar', () => {
     // Küçük harf hiçbir zaman element seçmemeli.
-    for (const tus of ['c', 'o', 'n', 'q']) {
+    for (const tus of ['o', 'n', 'q']) {
       expect(resolveKey(tus), tus).toEqual({ kind: 'none' });
     }
   });

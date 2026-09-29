@@ -15,6 +15,7 @@ import type { ToolId } from './editorReducer';
 const TOOL_KEYS: Record<string, ToolId> = {
   s: 'select',
   b: 'bond',
+  c: 'chain',
   a: 'atom',
   e: 'erase',
   t: 'template',

@@ -20,6 +20,7 @@ type Props = {
 
 const TOOLS: { id: ToolId; label: string; hint: string }[] = [
   { id: 'select', label: '⭠⭢', hint: 'Seç ve taşı (S) — boş alanda sürükleyerek kutu seçimi' },
+  { id: 'chain', label: '╱╲╱', hint: 'Zincir (c): sürükledikçe uzayan zikzak karbon zinciri' },
   { id: 'erase', label: '⌫', hint: 'Sil (E)' },
   { id: 'chargePlus', label: '＋', hint: 'Yükü artır' },
   { id: 'chargeMinus', label: '－', hint: 'Yükü azalt' },

@@ -6,6 +6,7 @@ import type { TransformOp } from '../model/transform';
 export type ToolId =
   | 'select'
   | 'bond'
+  | 'chain'
   | 'atom'
   | 'erase'
   | 'chargePlus'

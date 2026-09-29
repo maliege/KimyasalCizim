@@ -23,6 +23,8 @@ type Props = {
   highlight?: Highlight;
   /** Cizim sirasinda gosterilen gecici bag (henuz modele islenmemis) */
   preview?: Rect | null;
+  /** Zincir araci onizlemesi: kesikli zikzak ve eklenecek atom sayisi */
+  chainPreview?: { points: { x: number; y: number }[]; label: string } | null;
   /** Kutu secimi cercevesi (dunya koordinatinda) */
   selectionRect?: Rect | null;
   /** Fare altindaki atomun vurgusu icin */
@@ -50,6 +52,7 @@ const MoleculeSvg = forwardRef<SVGSVGElement, Props>(function MoleculeSvg(
     viewport = DEFAULT_VIEWPORT,
     highlight,
     preview,
+    chainPreview,
     selectionRect,
     hoverAtomId,
     stereo,
@@ -83,6 +86,29 @@ const MoleculeSvg = forwardRef<SVGSVGElement, Props>(function MoleculeSvg(
           />
         ))}
       </g>
+
+      {chainPreview && chainPreview.points.length > 1 && (
+        <g style={{ pointerEvents: 'none' }}>
+          <polyline
+            points={chainPreview.points.map((p) => `${p.x},${p.y}`).join(' ')}
+            fill="none"
+            stroke="var(--accent)"
+            strokeWidth={1.6}
+            strokeDasharray="4 3"
+            strokeLinejoin="round"
+          />
+          <text
+            x={chainPreview.points.at(-1)!.x + 10}
+            y={chainPreview.points.at(-1)!.y - 10}
+            fontSize={12}
+            fontWeight={600}
+            fill="var(--accent)"
+            fontFamily="system-ui, sans-serif"
+          >
+            {chainPreview.label}
+          </text>
+        </g>
+      )}
 
       {preview && (
         <line

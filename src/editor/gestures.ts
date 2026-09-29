@@ -67,6 +67,8 @@ export type TapOutcome =
   | { kind: 'commit'; molecule: Molecule }
   /** Bag surukleme basladi; `molecule` baslangic atomunu icerebilir */
   | { kind: 'startBond'; molecule: Molecule; fromAtom: AtomId }
+  /** Zincir surukleme basladi; bag aracindaki gibi baslangic atomu acilmis olabilir */
+  | { kind: 'startChain'; molecule: Molecule; fromAtom: AtomId }
   | {
       kind: 'startMove';
       atomIds: AtomId[];
@@ -85,6 +87,12 @@ export function resolveTap(mol: Molecule, point: Point, ctx: TapContext): TapOut
   const hitBondId = hitAtomId ? null : bondAt(mol, point, radius * 0.55);
 
   switch (ctx.tool) {
+    case 'chain': {
+      if (hitAtomId) return { kind: 'startChain', molecule: mol, fromAtom: hitAtomId };
+      const added = addAtom(mol, { element: DEFAULT_ELEMENT, x: point.x, y: point.y });
+      return { kind: 'startChain', molecule: added.molecule, fromAtom: added.atomId };
+    }
+
     case 'bond': {
       if (hitBondId) {
         // Var olan baga tiklamak dereceyi dondurur: 1 -> 2 -> 3 -> 1
