@@ -155,9 +155,9 @@ function message(verdict: Verdict): [Tone, string] {
 }
 
 const TONES: Record<Tone, React.CSSProperties> = {
-  good: { color: '#15803d', background: '#dcfce7', borderColor: '#86efac' },
-  near: { color: '#92400e', background: '#fef3c7', borderColor: '#fcd34d' },
-  bad: { color: 'var(--danger)', background: '#fee2e2', borderColor: '#fca5a5' },
+  good: { color: 'var(--good-fg)', background: 'var(--good-bg)', borderColor: 'var(--good-border)' },
+  near: { color: 'var(--near-fg)', background: 'var(--near-bg)', borderColor: 'var(--near-border)' },
+  bad: { color: 'var(--danger)', background: 'var(--bad-bg)', borderColor: 'var(--bad-border)' },
   muted: { color: 'var(--muted)', background: 'var(--bg)', borderColor: 'var(--border)' },
 };
 
@@ -165,7 +165,7 @@ const baseButton: React.CSSProperties = {
   fontSize: 12,
   padding: '5px 10px',
   minHeight: 30,
-  background: '#fff',
+  background: 'var(--surface)',
   border: '1px solid var(--border)',
   borderRadius: 6,
   cursor: 'pointer',
@@ -198,7 +198,7 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '4px 6px',
     border: '1px solid var(--border)',
     borderRadius: 6,
-    background: '#fff',
+    background: 'var(--surface)',
     color: 'var(--text)',
   },
   prompt: { fontSize: 13 },

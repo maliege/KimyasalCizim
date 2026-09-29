@@ -1,4 +1,5 @@
 import { implicitHydrogens, hasKnownValence } from '../model/valence';
+import { themed } from './theme';
 import { bondsOf, getAtom, neighborsOf } from '../model/molecule';
 import { angleBetween } from '../model/geometry';
 import type { Atom, Molecule } from '../model/types';
@@ -38,7 +39,15 @@ const ELEMENT_COLORS: Record<string, string> = {
   He: '#5fa8b8', Ne: '#4f9ab8', Ar: '#4a90b0', Kr: '#3f84a8', Xe: '#3878a0',
 };
 
-export const elementColor = (element: string): string => ELEMENT_COLORS[element] ?? '#3f3f46';
+/**
+ * Elementin cizim rengi, tema degiskeni olarak: var(--el-N, #2050d0).
+ * Koyu tema bu degiskenleri acik tonlarla ezer; disa aktarimda yedek (acik
+ * tema) degerine cozulur. Bkz. theme.ts.
+ */
+export const elementColor = (element: string): string => {
+  const light = ELEMENT_COLORS[element];
+  return light ? themed(`el-${element}`, light) : themed('ink-soft', '#3f3f46');
+};
 
 /** Etiket yaricapi — bag cizgileri bu kadar kisaltilir. */
 export const LABEL_RADIUS = 11;

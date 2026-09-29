@@ -20,6 +20,8 @@ import InfoPanel from './panels/InfoPanel';
 import { useMoleculeInfo } from './rdkit/useMoleculeInfo';
 import { COMBINE_WINDOW_MS, resolveKey } from './editor/keymap';
 import { isElement } from './model/elements';
+import { loadPrefs, savePrefs } from './ui/prefs';
+import { nextTheme } from './render/theme';
 import { findFunctionalGroup } from './model/functionalGroups';
 import { buildTaskUrl, parseShareHash } from './editor/shareLink';
 import { fromMolfile } from './model/molfile';
@@ -51,6 +53,27 @@ export default function App() {
 
   // Tek bir RDKit hesabi hem paneli hem tuvaldeki stereo etiketlerini besler.
   const { info, stereo, groups, pending, status } = useMoleculeInfo(state.molecule);
+
+  // Gorunum tercihleri: tema ve aromatik daire. Tema, kok elemandaki
+  // data-theme niteligiyle uygulanir; "otomatik"te nitelik kaldirilir ve
+  // sistem tercihi (prefers-color-scheme) gecerli olur.
+  const [prefs, setPrefs] = useState(loadPrefs);
+  useEffect(() => {
+    savePrefs(prefs);
+    const root = document.documentElement;
+    if (prefs.theme === 'auto') delete root.dataset.theme;
+    else root.dataset.theme = prefs.theme;
+  }, [prefs]);
+
+  // Aromatik halkalari RDKit buluyor (fonksiyonel grup taramasinin parcasi);
+  // daire gosterimi acikken onlari cizime veriyoruz.
+  const aromaticRings = useMemo(
+    () =>
+      prefs.aromaticCircles
+        ? (groups.find((g) => g.id === 'aromatic-ring')?.matches ?? null)
+        : null,
+    [prefs.aromaticCircles, groups],
+  );
 
   // Panelde tiklanan fonksiyonel grup tuvalde renklendirilir. Molekul
   // degisip grup artik yoksa vurgu kendiliginden kaybolur.
@@ -342,6 +365,10 @@ export default function App() {
           onZoom={handleZoom}
           onFit={handleFit}
           compact={compact}
+          theme={prefs.theme}
+          onCycleTheme={() => setPrefs((p) => ({ ...p, theme: nextTheme(p.theme) }))}
+          aromaticCircles={prefs.aromaticCircles}
+          onToggleAromatic={() => setPrefs((p) => ({ ...p, aromaticCircles: !p.aromaticCircles }))}
         />
 
         {/* Gorev seridi tuvalin UZERINE binmesin diye ayni sutunda, ustunde.
@@ -380,6 +407,7 @@ export default function App() {
             stereo={stereo}
             errorAtomIds={errorAtomSet}
             groupHighlight={groupHighlight}
+            aromaticRings={aromaticRings}
             svgRef={svgRef}
           />
         </main>
@@ -432,7 +460,7 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 12,
     padding: '6px 12px',
     minHeight: 34,
-    background: '#fff',
+    background: 'var(--surface)',
     border: '1px solid var(--border)',
     borderRadius: 6,
     cursor: 'pointer',
@@ -452,7 +480,7 @@ const styles: Record<string, React.CSSProperties> = {
     minWidth: 0,
     minHeight: 0,
     overflow: 'hidden',
-    background: '#fff',
+    background: 'var(--surface)',
     position: 'relative',
   },
   notice: {
@@ -464,7 +492,7 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '8px 12px',
     fontSize: 12,
     color: 'var(--danger)',
-    background: '#fff',
+    background: 'var(--surface)',
     border: '1px solid var(--danger)',
     borderRadius: 6,
     cursor: 'pointer',

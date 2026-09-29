@@ -3,11 +3,14 @@ import { distance } from '../model/geometry';
 import type { Atom, Bond, Molecule } from '../model/types';
 import type { Point as GeomPoint } from '../model/geometry';
 import { BOND_GAP, BOND_WIDTH, LABEL_RADIUS, isLabelVisible } from './style';
+import { INK } from './theme';
 
 type Props = {
   molecule: Molecule;
   bond: Bond;
   selected?: boolean;
+  /** Aromatik daire gosteriminde halka bagi: derecesinden bagimsiz tekli cizgi */
+  aromatic?: boolean;
 };
 
 /**
@@ -18,13 +21,14 @@ type Props = {
  * zincir) ikinci cizgi o tarafa, kisaltilmis olarak cizilir; aksi halde
  * iki cizgi bagin iki yanina simetrik yerlestirilir.
  */
-export default function BondShape({ molecule, bond, selected }: Props) {
+export default function BondShape({ molecule, bond, selected, aromatic }: Props) {
   const a = getAtom(molecule, bond.a1);
   const b = getAtom(molecule, bond.a2);
   if (!a || !b) return null;
 
   const [start, end] = trimForLabels(molecule, a, b);
-  const color = selected ? 'var(--accent)' : '#1c2029';
+  // Icerik rengi (disa aktarilir); secim rengi arayuz katmanidir.
+  const color = selected ? 'var(--accent)' : INK;
   const width = BOND_WIDTH + (selected ? 1 : 0);
 
   if (bond.stereo === 'wedge') {
@@ -47,7 +51,7 @@ export default function BondShape({ molecule, bond, selected }: Props) {
     />
   );
 
-  if (bond.order === 1) return line(start, end);
+  if (bond.order === 1 || (aromatic && bond.order === 2)) return line(start, end);
 
   const normal = perpendicular(start, end);
 

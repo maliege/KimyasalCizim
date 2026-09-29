@@ -8,6 +8,8 @@ import type { BondOrder } from '../model/types';
 import { elementColor } from '../render/style';
 import ElementPicker from './ElementPicker';
 import type { TransformOp } from '../model/transform';
+import { THEME_LABELS } from '../render/theme';
+import type { ThemeChoice } from '../render/theme';
 
 type Props = {
   state: EditorState;
@@ -16,6 +18,10 @@ type Props = {
   onFit: () => void;
   /** Dar ekran: dikey panel yerine yatay kaydirilabilir serit */
   compact?: boolean;
+  theme: ThemeChoice;
+  onCycleTheme: () => void;
+  aromaticCircles: boolean;
+  onToggleAromatic: () => void;
 };
 
 const TOOLS: { id: ToolId; label: string; hint: string }[] = [
@@ -54,7 +60,17 @@ const TRANSFORMS: { label: string; hint: string; op: TransformOp }[] = [
  */
 const TouchTargets = createContext(false);
 
-export default function Toolbar({ state, dispatch, onZoom, onFit, compact = false }: Props) {
+export default function Toolbar({
+  state,
+  dispatch,
+  onZoom,
+  onFit,
+  compact = false,
+  theme,
+  onCycleTheme,
+  aromaticCircles,
+  onToggleAromatic,
+}: Props) {
   const [pickerOpen, setPickerOpen] = useState(false);
 
   // Hizli palette zaten bulunanlari son kullanilanlarda tekrarlamaya gerek yok.
@@ -198,6 +214,19 @@ export default function Toolbar({ state, dispatch, onZoom, onFit, compact = fals
           </Button>
           <Button title="Tuvale sığdır" onClick={onFit} grow>
             <span style={{ fontSize: 11 }}>Sığdır</span>
+          </Button>
+          <Button
+            title="Aromatik halkaları içte daireyle göster (Kekulé yerine)"
+            active={aromaticCircles}
+            onClick={onToggleAromatic}
+            grow
+          >
+            <span style={{ fontSize: 11 }}>⌬ Daire</span>
+          </Button>
+          <Button title="Tema: Otomatik → Açık → Koyu" onClick={onCycleTheme} grow>
+            <span style={{ fontSize: 11 }}>
+              {theme === 'dark' ? '☾' : theme === 'light' ? '☀' : '◐'} {THEME_LABELS[theme]}
+            </span>
           </Button>
         </div>
       </Section>
@@ -346,7 +375,7 @@ const styles: Record<string, React.CSSProperties> = {
     height: 30,
     padding: '0 6px',
     fontSize: 14,
-    background: '#fff',
+    background: 'var(--surface)',
     border: '1px solid var(--border)',
     borderRadius: 6,
     cursor: 'pointer',

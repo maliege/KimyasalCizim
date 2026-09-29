@@ -4,6 +4,7 @@ import { cleanupCoords, molblockFromSmiles } from '../rdkit/RdkitService';
 import { useRdkit } from '../rdkit/useRdkit';
 import type { Molecule } from '../model/types';
 import ExampleGallery from './ExampleGallery';
+import { resolveThemeVars } from '../render/theme';
 import { buildShareUrl } from '../editor/shareLink';
 
 type Props = {
@@ -221,6 +222,17 @@ export default function ExportBar({ molecule, smiles: currentSmiles, onImport, s
 function serializeSvg(svg: SVGSVGElement): string {
   const clone = svg.cloneNode(true) as SVGSVGElement;
   // CSS degiskenleri disa aktarilan dosyada cozulmez; sabit renge cevir.
+  // 1) Icerik renkleri: var(--ad, yedek) → yedek. Belgeye giden gorsel her
+  //    zaman acik tema olur (beyaz zemin, koyu murekkep), ekranda hangi tema
+  //    acik olursa olsun.
+  for (const node of [clone, ...clone.querySelectorAll('*')]) {
+    for (const attr of ['stroke', 'fill', 'style']) {
+      const value = node.getAttribute(attr);
+      if (value?.includes('var(')) node.setAttribute(attr, resolveThemeVars(value));
+    }
+  }
+  // 2) Geriye kalan yedeksiz var(--ad) ifadeleri arayuz katmanidir (secim,
+  //    vurgu, onizleme): gorselden cikarilir.
   clone.querySelectorAll('[stroke^="var("], [fill^="var("]').forEach((node) => node.remove());
   clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
   return new XMLSerializer().serializeToString(clone);
@@ -290,7 +302,7 @@ const styles: Record<string, React.CSSProperties> = {
   button: {
     fontSize: 11,
     padding: '4px 8px',
-    background: '#fff',
+    background: 'var(--surface)',
     border: '1px solid var(--border)',
     borderRadius: 6,
     cursor: 'pointer',

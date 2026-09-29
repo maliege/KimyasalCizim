@@ -133,7 +133,7 @@ const styles: Record<string, React.CSSProperties> = {
   subtitle: { margin: '4px 0 0', fontSize: 11, color: 'var(--muted)', lineHeight: 1.5 },
   close: {
     border: '1px solid var(--border)',
-    background: '#fff',
+    background: 'var(--surface)',
     borderRadius: 6,
     cursor: 'pointer',
     fontSize: 12,
@@ -161,6 +161,7 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     gap: 4,
     padding: 6,
+    // Bilerek beyaz: RDKit kucuk resimleri beyaz zeminli; koyu temada kagit gibi dursun.
     background: '#fff',
     border: '1px solid var(--border)',
     borderRadius: 8,

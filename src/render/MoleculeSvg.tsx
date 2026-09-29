@@ -1,4 +1,4 @@
-import { forwardRef } from 'react';
+import { forwardRef, useMemo } from 'react';
 import type { Molecule } from '../model/types';
 import { DEFAULT_VIEWPORT, viewBoxOf } from '../editor/viewport';
 import type { Viewport } from '../editor/viewport';
@@ -6,7 +6,8 @@ import { getAtom } from '../model/molecule';
 import { pointAt, preferredBondAngle } from '../model/geometry';
 import AtomLabel from './AtomLabel';
 import BondShape from './BondShape';
-import { isLabelVisible } from './style';
+import { BOND_WIDTH, isLabelVisible } from './style';
+import { CANVAS_BG, INK } from './theme';
 
 export type Highlight = {
   atomIds?: Set<string>;
@@ -35,6 +36,8 @@ type Props = {
   errorAtomIds?: Set<string>;
   /** Secili fonksiyonel grubun atomlari — renkli serit ile vurgulanir */
   groupHighlight?: { color: string; atomIds: Set<string> } | null;
+  /** Verilirse bu halkalar icte daireyle, baglari tekli cizgiyle gosterilir */
+  aromaticRings?: string[][] | null;
 } & React.SVGProps<SVGSVGElement>;
 
 /**
@@ -58,10 +61,16 @@ const MoleculeSvg = forwardRef<SVGSVGElement, Props>(function MoleculeSvg(
     stereo,
     errorAtomIds,
     groupHighlight,
+    aromaticRings,
     ...svgProps
   },
   ref,
 ) {
+  const aromaticBonds = useMemo(
+    () => ringBondIds(molecule, aromaticRings ?? []),
+    [molecule, aromaticRings],
+  );
+
   return (
     <svg
       ref={ref}
@@ -69,7 +78,7 @@ const MoleculeSvg = forwardRef<SVGSVGElement, Props>(function MoleculeSvg(
       height={height}
       viewBox={viewBoxOf(viewport, width, height)}
       xmlns="http://www.w3.org/2000/svg"
-      style={{ display: 'block', background: '#fff', touchAction: 'none' }}
+      style={{ display: 'block', background: CANVAS_BG, touchAction: 'none' }}
       {...svgProps}
     >
       {/* Grup vurgusu en altta: baglar ve etiketler ustunde okunakli kalsin */}
@@ -83,8 +92,10 @@ const MoleculeSvg = forwardRef<SVGSVGElement, Props>(function MoleculeSvg(
             molecule={molecule}
             bond={bond}
             selected={highlight?.bondIds?.has(bond.id)}
+            aromatic={aromaticBonds.has(bond.id)}
           />
         ))}
+        {aromaticRings?.map((ring) => <AromaticCircle key={ring.join()} molecule={molecule} ring={ring} />)}
       </g>
 
       {chainPreview && chainPreview.points.length > 1 && (
@@ -128,7 +139,7 @@ const MoleculeSvg = forwardRef<SVGSVGElement, Props>(function MoleculeSvg(
         {molecule.atoms
           .filter((a) => isLabelVisible(molecule, a))
           .map((atom) => (
-            <circle key={atom.id} cx={atom.x} cy={atom.y} r={10} fill="#fff" />
+            <circle key={atom.id} cx={atom.x} cy={atom.y} r={10} fill={CANVAS_BG} />
           ))}
       </g>
 
@@ -246,6 +257,34 @@ function StereoLayer({
         return label(bondId, (a.x + b.x) / 2, (a.y + b.y) / 2 - 12, text);
       })}
     </g>
+  );
+}
+
+/** Aromatik halkalarin kenari olan baglar: iki ucu da ayni halkada. */
+function ringBondIds(molecule: Molecule, rings: string[][]): Set<string> {
+  const ids = new Set<string>();
+  for (const ring of rings) {
+    const members = new Set(ring);
+    for (const b of molecule.bonds) {
+      if (members.has(b.a1) && members.has(b.a2)) ids.add(b.id);
+    }
+  }
+  return ids;
+}
+
+/**
+ * Halkanin icine daire. Yaricap, halkanin ic teget cemberinin ~%62'si:
+ * kenarlara degmeden, bos kalmadan ortada durur.
+ */
+function AromaticCircle({ molecule, ring }: { molecule: Molecule; ring: string[] }) {
+  const atoms = ring.map((id) => getAtom(molecule, id)).filter((a) => a !== undefined);
+  if (atoms.length < 3) return null;
+  const cx = atoms.reduce((s, a) => s + a.x, 0) / atoms.length;
+  const cy = atoms.reduce((s, a) => s + a.y, 0) / atoms.length;
+  const circumradius = atoms.reduce((s, a) => s + Math.hypot(a.x - cx, a.y - cy), 0) / atoms.length;
+  const inradius = circumradius * Math.cos(Math.PI / atoms.length);
+  return (
+    <circle cx={cx} cy={cy} r={inradius * 0.62} fill="none" stroke={INK} strokeWidth={BOND_WIDTH} />
   );
 }
 

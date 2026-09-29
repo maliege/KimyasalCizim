@@ -20,10 +20,10 @@ type Props = {
 
 /** Elektron bloguna gore hucre arkaplani. */
 const BLOCK_BACKGROUND: Record<Block, string> = {
-  s: '#fdecec',
-  p: '#fdf6e3',
-  d: '#e9f1fd',
-  f: '#e9f6ec',
+  s: 'var(--block-s)',
+  p: 'var(--block-p)',
+  d: 'var(--block-d)',
+  f: 'var(--block-f)',
 };
 
 /**
@@ -173,7 +173,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   close: {
     border: '1px solid var(--border)',
-    background: '#fff',
+    background: 'var(--surface)',
     borderRadius: 6,
     cursor: 'pointer',
     fontSize: 12,

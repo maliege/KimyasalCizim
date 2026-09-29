@@ -4,6 +4,7 @@ import { atomsInRect, getAtom } from '../model/molecule';
 import { atomAt, snapToGrid } from '../model/geometry';
 import type { Point } from '../model/geometry';
 import MoleculeSvg from '../render/MoleculeSvg';
+import { CANVAS_BG } from '../render/theme';
 import type { Rect } from '../render/MoleculeSvg';
 import type { AtomId, Molecule } from '../model/types';
 import type { EditorAction, EditorState } from './editorReducer';
@@ -25,6 +26,7 @@ type Props = {
   stereo?: StereoLabels | null;
   errorAtomIds?: Set<string>;
   groupHighlight?: { color: string; atomIds: Set<string> } | null;
+  aromaticRings?: string[][] | null;
   /** Disa aktarma tuvale erisebilsin diye ref disaridan verilir. */
   svgRef: React.RefObject<SVGSVGElement | null>;
 };
@@ -57,6 +59,7 @@ export default function Canvas({
   stereo,
   errorAtomIds,
   groupHighlight,
+  aromaticRings,
   svgRef,
 }: Props) {
   const dragRef = useRef<Drag>(null);
@@ -371,6 +374,7 @@ export default function Canvas({
       stereo={stereo}
       errorAtomIds={errorAtomIds}
       groupHighlight={groupHighlight}
+      aromaticRings={aromaticRings}
       highlight={{ atomIds: new Set(state.selectedAtoms) }}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
@@ -380,7 +384,7 @@ export default function Canvas({
       onPointerCancel={handlePointerUp}
       onPointerLeave={() => setHoverAtom(null)}
       onContextMenu={(e) => e.preventDefault()}
-      style={{ display: 'block', background: '#fff', touchAction: 'none', cursor: cursorFor(tool) }}
+      style={{ display: 'block', background: CANVAS_BG, touchAction: 'none', cursor: cursorFor(tool) }}
     />
   );
 }

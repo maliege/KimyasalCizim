@@ -135,7 +135,7 @@ export default function InfoPanel({
                       style={{
                         ...styles.chip,
                         borderColor: def.color,
-                        background: active ? def.color : '#fff',
+                        background: active ? def.color : 'var(--surface)',
                         color: active ? '#fff' : 'var(--text)',
                       }}
                     >
@@ -250,7 +250,7 @@ const styles: Record<string, React.CSSProperties> = {
     marginBottom: 8,
     padding: '8px 10px',
     fontSize: 12,
-    background: '#fff',
+    background: 'var(--surface)',
     border: '1px solid var(--border)',
     borderRadius: 6,
     cursor: 'pointer',

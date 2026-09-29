@@ -64,13 +64,17 @@ Dönüştürücü (`sharp`) `npx` ile geçici olarak çalışır; kalıcı bağ�
 | **SMILES'ten çizim** | Sağ paneldeki kutuya yapıştırıp «Çiz» |
 | **Örnek galerisi** | Sağ panelde «Örnekler» — 24 hazır molekül (aspirin, kafein, glikoz…) |
 | Yük / stereo | İlgili aracı seçip atoma ya da bağa tıklayın |
+| **Zincir** | Zincir aracıyla sürükleyin: sürükledikçe uzayan zikzak karbon zinciri |
+| **İzotop** | İzotop aracıyla atoma tıkladıkça ¹²C → ¹³C → ¹⁴C (H → D → T …) |
+| **Döndür / aynala** | «Dönüştür» bölümü: seçimi, seçim yoksa tüm yapıyı. Aynalama stereokimyayı korur |
+| **Paylaş** | «Bağlantı» düğmesi yapıyı açan bir adres üretir (`#smiles=…`) |
 | Düzenle | Koordinatları RDKit'e yeniden ürettirir |
 | Geri / ileri | Ctrl+Z, Ctrl+Y |
 
 **Klavye — küçük harf araç, BÜYÜK harf element:**
 
-- `b` bağ · `a` atom · `s` seç · `e` sil · `t` halka · `g` grup · `w` kama · `h` kesikli
-- `C`, `N`, `O`, `S`, `W`… tek harfli element simgeleri (iki harfliler palet/tablodan)
+- `b` bağ · `c` zincir · `a` atom · `s` seç · `e` sil · `t` halka · `g` grup · `w` kama · `h` kesikli
+- `C`, `N`, `O`, `S`, `W`… element simgeleri; iki harfliler hızlıca yazılır (`C` `l` → Cl, `N` `a` → Na)
 - `Ctrl+A` tümünü seç · `Ctrl+C`/`Ctrl+V` kopyala-yapıştır · `Delete` seçimi sil · `Esc` bırak
 
 Bu ayrım zorunlu: `w` kama aracı ama `W` tungsten; aynı çakışma `b`/`B`, `s`/`S`,
@@ -98,6 +102,38 @@ Ana grup elementlerinin değerliği biliniyor, hidrojenleri otomatik hesaplanıy
 uydurmak yanıltıcı olurdu; organometalik yapılarda istenen davranış budur.
 
 Çizim **tarayıcıda otomatik saklanır** — sekmeyi kapatıp geri dönünce kaldığınız yerden devam edersiniz.
+
+### Molekülü anlamak
+
+Bilgi paneli molekülde bulunan **fonksiyonel grupları** listeler (karboksilik asit,
+ester, amid, aldehit, keton, alkol, fenol, eter, amin, nitril, nitro, halojenür,
+tiyol, alken, alkin, aromatik halka). Bir gruba tıklayınca atomları tuvalde o
+grubun rengiyle vurgulanır.
+
+**Değerliği aşılmış** atomlar (beş bağlı karbon gibi) tuvalde kırmızı kesikli
+halkayla, panelde adı ve bağ sayısıyla gösterilir.
+
+### Alıştırma modu
+
+Başlıktaki **🎓 Alıştırma** düğmesi kolaydan zora 18 "şunu çizin" görevi açar.
+Çizip **Kontrol et**'e basın. Değerlendirme InChIKey ile yapılır ve yalnız
+doğru/yanlış değil, *neden* yanlış olduğunu da söyler:
+
+| Durum | Geri bildirim |
+|---|---|
+| Aynı molekül | Doğru |
+| İskelet aynı, stereokimya farklı | Kama/kesikli bağları kontrol edin |
+| İskelet aynı, yük farklı | Yükleri kontrol edin (asetik asit ↔ asetat) |
+| Formül aynı, bağlanma farklı | Bu bir izomer (etanol ↔ dimetil eter) |
+
+Belirli bir görevi bağlantıyla paylaşabilirsiniz: `maege.tr/#gorev=aspirin`.
+
+### Görünüm
+
+**Tema** Otomatik (sistem tercihi) / Açık / Koyu arasında değişir. Dışa aktarılan
+SVG ve PNG ekranda hangi tema açık olursa olsun **her zaman açık temadır** —
+belgeye beyaz zemin, koyu mürekkep gider. **⌬ Daire** aromatik halkaları bir
+atlamalı ikili bağlar yerine içte daireyle gösterir.
 
 ### Stereokimya
 
