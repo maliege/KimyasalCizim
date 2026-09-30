@@ -1,9 +1,11 @@
-import { createContext, useContext, useState } from 'react';
+import { createContext, useContext, useEffect, useState } from 'react';
+import { TOOLS, sectionForTool, toggleSection } from './toolbarSections';
+import type { AccordionId } from './toolbarSections';
 import { TEMPLATES } from '../model/templates';
 import { GROUPS } from '../model/groups';
 import { elementName } from '../model/elements';
 import { canRedo, canUndo } from '../editor/editorReducer';
-import type { EditorAction, EditorState, ToolId } from '../editor/editorReducer';
+import type { EditorAction, EditorState } from '../editor/editorReducer';
 import type { BondOrder } from '../model/types';
 import { elementColor } from '../render/style';
 import ElementPicker from './ElementPicker';
@@ -26,16 +28,6 @@ type Props = {
   onToggleCarbons: () => void;
 };
 
-const TOOLS: { id: ToolId; label: string; hint: string }[] = [
-  { id: 'select', label: '⭠⭢', hint: 'Seç ve taşı (S) — boş alanda sürükleyerek kutu seçimi' },
-  { id: 'chain', label: '╱╲╱', hint: 'Zincir (c): sürükledikçe uzayan zikzak karbon zinciri' },
-  { id: 'erase', label: '⌫', hint: 'Sil (E)' },
-  { id: 'chargePlus', label: '＋', hint: 'Yükü artır' },
-  { id: 'chargeMinus', label: '－', hint: 'Yükü azalt' },
-  { id: 'isotope', label: '¹³C', hint: 'İzotop: atoma tıkladıkça değişir (¹²C → ¹³C → ¹⁴C → ¹²C)' },
-  { id: 'wedge', label: '◤', hint: 'Kama bağ, öne doğru (W)' },
-  { id: 'hash', label: '⦀', hint: 'Kesikli bağ, arkaya (H)' },
-];
 
 const BOND_ORDERS: { order: BondOrder; label: string; hint: string }[] = [
   { order: 1, label: '—', hint: 'Tekli bağ' },
@@ -81,6 +73,45 @@ export default function Toolbar({
   const recent = state.recentElements.filter((e) => !ELEMENTS.includes(e));
 
   const Section = compact ? CompactSection : WideSection;
+
+  // Akordiyon: Araclar / Gruplar / Halkalar'dan yalniz biri acik.
+  const [openSection, setOpenSection] = useState<AccordionId | null>(
+    () => sectionForTool(state.tool) ?? 'araclar',
+  );
+  // Arac degisince (kisayolla da olsa) o aracin bolumu acilsin; secili arac
+  // kapali bir bolumde gozden kaybolmasin. Yalniz arac degisince calisir,
+  // yani kullanicinin elle kapattigi bolume karismaz.
+  useEffect(() => {
+    const section = sectionForTool(state.tool);
+    if (section) setOpenSection(section);
+  }, [state.tool]);
+
+  /**
+   * Genis ekranda akordiyon, dar ekranda (yatay serit) acik bolum.
+   * Bilerek bilesen degil fonksiyon: render icinde tanimlanan bir bilesen her
+   * render'da yeniden olusur ve tiklanan dugmenin odagini kaybettirirdi.
+   */
+  const fold = (id: AccordionId, title: string, summary: string | undefined, body: React.ReactNode) =>
+    compact ? (
+      <CompactSection title={title}>{body}</CompactSection>
+    ) : (
+      <AccordionSection
+        id={id}
+        title={title}
+        summary={summary}
+        open={openSection === id}
+        onToggle={() => setOpenSection((cur) => toggleSection(cur, id))}
+      >
+        {body}
+      </AccordionSection>
+    );
+
+  // Kapali bolumde secili olan sey baslikta gorunsun: "Halkalar · Benzen"
+  const activeTool = TOOLS.find((t) => t.id === state.tool)?.name;
+  const activeGroup =
+    state.tool === 'group' ? GROUPS.find((g) => g.id === state.groupId)?.formula : undefined;
+  const activeTemplate =
+    state.tool === 'template' ? TEMPLATES.find((t) => t.id === state.templateId)?.label : undefined;
 
   return (
     <TouchTargets.Provider value={compact}>
@@ -146,7 +177,7 @@ export default function Toolbar({
         />
       )}
 
-      <Section title="Araçlar">
+      {fold('araclar', 'Araçlar', activeTool, (
         <div style={styles.grid}>
           {TOOLS.map(({ id, label, hint }) => (
             <Button
@@ -159,9 +190,9 @@ export default function Toolbar({
             </Button>
           ))}
         </div>
-      </Section>
+      ))}
 
-      <Section title="Gruplar">
+      {fold('gruplar', 'Gruplar', activeGroup, (
         <div style={styles.grid}>
           {GROUPS.map((group) => (
             <Button
@@ -175,9 +206,9 @@ export default function Toolbar({
             </Button>
           ))}
         </div>
-      </Section>
+      ))}
 
-      <Section title="Halkalar">
+      {fold('halkalar', 'Halkalar', activeTemplate, (
         <div style={compact ? styles.grid : styles.templateList}>
           {TEMPLATES.map((template) => (
             <Button
@@ -191,7 +222,7 @@ export default function Toolbar({
             </Button>
           ))}
         </div>
-      </Section>
+      ))}
 
       <Section title="Dönüştür">
         <div style={styles.grid}>
@@ -223,21 +254,21 @@ export default function Toolbar({
             title="Karbon atomlarını etiketle göster (CH₃, CH₂…) ya da iskelet gösterime dön"
             active={showCarbons}
             onClick={onToggleCarbons}
-            grow
+            wide={!compact}
           >
-            <span style={{ fontSize: 11 }}>C Göster</span>
+            <span style={{ fontSize: 11 }}>C Karbonları göster</span>
           </Button>
           <Button
             title="Aromatik halkaları içte daireyle göster (Kekulé yerine)"
             active={aromaticCircles}
             onClick={onToggleAromatic}
-            grow
+            wide={!compact}
           >
-            <span style={{ fontSize: 11 }}>⌬ Daire</span>
+            <span style={{ fontSize: 11 }}>⌬ Aromatik daire</span>
           </Button>
-          <Button title="Tema: Otomatik → Açık → Koyu" onClick={onCycleTheme} grow>
+          <Button title="Tema: Otomatik → Açık → Koyu" onClick={onCycleTheme} wide={!compact}>
             <span style={{ fontSize: 11 }}>
-              {theme === 'dark' ? '☾' : theme === 'light' ? '☀' : '◐'} {THEME_LABELS[theme]}
+              {theme === 'dark' ? '☾' : theme === 'light' ? '☀' : '◐'} Tema: {THEME_LABELS[theme]}
             </span>
           </Button>
         </div>
@@ -277,6 +308,41 @@ function WideSection({ title, children }: SectionProps) {
     <section style={{ marginBottom: 16 }}>
       <h2 style={styles.sectionTitle}>{title}</h2>
       {children}
+    </section>
+  );
+}
+
+/** Genis ekran akordiyon bolumu: basliga tiklayinca acilir/kapanir. */
+function AccordionSection({
+  id,
+  title,
+  summary,
+  open,
+  onToggle,
+  children,
+}: SectionProps & {
+  id: AccordionId;
+  summary?: string;
+  open: boolean;
+  onToggle: () => void;
+}) {
+  const panelId = `akordiyon-${id}`;
+  return (
+    <section style={{ marginBottom: open ? 16 : 6 }}>
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls={panelId}
+        onClick={onToggle}
+        style={styles.accordionHeader}
+      >
+        <span style={styles.chevron} aria-hidden="true">
+          {open ? '▾' : '▸'}
+        </span>
+        {title}
+        {!open && summary && <span style={styles.accordionSummary}>· {summary}</span>}
+      </button>
+      {open && <div id={panelId}>{children}</div>}
     </section>
   );
 }
@@ -371,6 +437,32 @@ const styles: Record<string, React.CSSProperties> = {
     writingMode: 'vertical-rl',
     transform: 'rotate(180deg)',
     maxHeight: 62,
+  },
+  accordionHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 4,
+    width: '100%',
+    padding: '4px 0 6px',
+    border: 'none',
+    background: 'none',
+    cursor: 'pointer',
+    fontSize: 11,
+    fontWeight: 600,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+    color: 'var(--muted)',
+    textAlign: 'left',
+  },
+  chevron: { width: 10, fontSize: 10 },
+  accordionSummary: {
+    textTransform: 'none',
+    letterSpacing: 0,
+    fontWeight: 400,
+    color: 'var(--accent)',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
   },
   sectionTitle: {
     fontSize: 11,
