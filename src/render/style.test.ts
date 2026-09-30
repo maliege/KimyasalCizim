@@ -78,6 +78,19 @@ describe('isLabelVisible', () => {
     expect(isLabelVisible(mol, mol.atoms[0])).toBe(true);
   });
 
+  it('C Göster açıkken halka ve zincir karbonlarını da etiketler', () => {
+    const benzene = buildRing(emptyMolecule(), { x: 0, y: 0 }, 6, true).molecule;
+    expect(benzene.atoms.every((a) => isLabelVisible(benzene, a, true))).toBe(true);
+    // Etiket metni hidrojenleriyle birlikte: benzende her karbon CH
+    expect(benzene.atoms.map((a) => labelText(benzene, a))).toEqual(Array(6).fill('CH'));
+  });
+
+  it('C Göster heteroatomların görünürlüğünü değiştirmez', () => {
+    const { mol, oxygenId } = hydroxylWithNeighborAt(40, 0);
+    expect(isLabelVisible(mol, getAtom(mol, oxygenId)!, false)).toBe(true);
+    expect(isLabelVisible(mol, getAtom(mol, oxygenId)!, true)).toBe(true);
+  });
+
   it('yüklü karbonu etiketler', () => {
     let m = emptyMolecule();
     const c = addAtom(m, { element: 'C', x: 0, y: 0, charge: 1 });

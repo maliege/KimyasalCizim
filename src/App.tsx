@@ -369,6 +369,8 @@ export default function App() {
           onCycleTheme={() => setPrefs((p) => ({ ...p, theme: nextTheme(p.theme) }))}
           aromaticCircles={prefs.aromaticCircles}
           onToggleAromatic={() => setPrefs((p) => ({ ...p, aromaticCircles: !p.aromaticCircles }))}
+          showCarbons={prefs.showCarbons}
+          onToggleCarbons={() => setPrefs((p) => ({ ...p, showCarbons: !p.showCarbons }))}
         />
 
         {/* Gorev seridi tuvalin UZERINE binmesin diye ayni sutunda, ustunde.
@@ -408,6 +410,7 @@ export default function App() {
             errorAtomIds={errorAtomSet}
             groupHighlight={groupHighlight}
             aromaticRings={aromaticRings}
+            showCarbons={prefs.showCarbons}
             svgRef={svgRef}
           />
         </main>

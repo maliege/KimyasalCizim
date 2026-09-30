@@ -38,6 +38,8 @@ type Props = {
   groupHighlight?: { color: string; atomIds: Set<string> } | null;
   /** Verilirse bu halkalar icte daireyle, baglari tekli cizgiyle gosterilir */
   aromaticRings?: string[][] | null;
+  /** Karbonlari da etiketle (CH3, CH2…); kapaliyken iskelet gosterim */
+  showCarbons?: boolean;
 } & React.SVGProps<SVGSVGElement>;
 
 /**
@@ -62,6 +64,7 @@ const MoleculeSvg = forwardRef<SVGSVGElement, Props>(function MoleculeSvg(
     errorAtomIds,
     groupHighlight,
     aromaticRings,
+    showCarbons = false,
     ...svgProps
   },
   ref,
@@ -93,6 +96,7 @@ const MoleculeSvg = forwardRef<SVGSVGElement, Props>(function MoleculeSvg(
             bond={bond}
             selected={highlight?.bondIds?.has(bond.id)}
             aromatic={aromaticBonds.has(bond.id)}
+            showCarbons={showCarbons}
           />
         ))}
         {aromaticRings?.map((ring) => <AromaticCircle key={ring.join()} molecule={molecule} ring={ring} />)}
@@ -137,7 +141,7 @@ const MoleculeSvg = forwardRef<SVGSVGElement, Props>(function MoleculeSvg(
       {/* Etiketlerin arkasina beyaz hale — bag cizgileri metne degmesin */}
       <g>
         {molecule.atoms
-          .filter((a) => isLabelVisible(molecule, a))
+          .filter((a) => isLabelVisible(molecule, a, showCarbons))
           .map((atom) => (
             <circle key={atom.id} cx={atom.x} cy={atom.y} r={10} fill={CANVAS_BG} />
           ))}
@@ -159,7 +163,7 @@ const MoleculeSvg = forwardRef<SVGSVGElement, Props>(function MoleculeSvg(
                   strokeWidth={1.5}
                 />
               )}
-              {isLabelVisible(molecule, atom) && <AtomLabel molecule={molecule} atom={atom} />}
+              {isLabelVisible(molecule, atom, showCarbons) && <AtomLabel molecule={molecule} atom={atom} />}
             </g>
           );
         })}

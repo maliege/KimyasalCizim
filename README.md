@@ -81,6 +81,7 @@ Dönüştürücü (`sharp`) `npx` ile geçici olarak çalışır; kalıcı bağ�
 | Yük / stereo | İlgili aracı seçip atoma ya da bağa tıklayın |
 | **Zincir** | Zincir aracıyla sürükleyin: sürükledikçe uzayan zikzak karbon zinciri |
 | **İzotop** | İzotop aracıyla atoma tıkladıkça ¹²C → ¹³C → ¹⁴C (H → D → T …) |
+| **Karbonları göster** | «Görünüm» → «C Göster»: her karbon hidrojenleriyle yazılır (CH₃, CH₂, CH); kapalıyken iskelet gösterim |
 | **Döndür / aynala** | «Dönüştür» bölümü: seçimi, seçim yoksa tüm yapıyı. Aynalama stereokimyayı korur |
 | **Paylaş** | «Bağlantı» düğmesi yapıyı açan bir adres üretir (`#smiles=…`) |
 | Düzenle | Koordinatları RDKit'e yeniden ürettirir |

@@ -22,6 +22,8 @@ type Props = {
   onCycleTheme: () => void;
   aromaticCircles: boolean;
   onToggleAromatic: () => void;
+  showCarbons: boolean;
+  onToggleCarbons: () => void;
 };
 
 const TOOLS: { id: ToolId; label: string; hint: string }[] = [
@@ -70,6 +72,8 @@ export default function Toolbar({
   onCycleTheme,
   aromaticCircles,
   onToggleAromatic,
+  showCarbons,
+  onToggleCarbons,
 }: Props) {
   const [pickerOpen, setPickerOpen] = useState(false);
 
@@ -214,6 +218,14 @@ export default function Toolbar({
           </Button>
           <Button title="Tuvale sığdır" onClick={onFit} grow>
             <span style={{ fontSize: 11 }}>Sığdır</span>
+          </Button>
+          <Button
+            title="Karbon atomlarını etiketle göster (CH₃, CH₂…) ya da iskelet gösterime dön"
+            active={showCarbons}
+            onClick={onToggleCarbons}
+            grow
+          >
+            <span style={{ fontSize: 11 }}>C Göster</span>
           </Button>
           <Button
             title="Aromatik halkaları içte daireyle göster (Kekulé yerine)"

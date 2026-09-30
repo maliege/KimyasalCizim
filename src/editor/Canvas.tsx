@@ -27,6 +27,7 @@ type Props = {
   errorAtomIds?: Set<string>;
   groupHighlight?: { color: string; atomIds: Set<string> } | null;
   aromaticRings?: string[][] | null;
+  showCarbons?: boolean;
   /** Disa aktarma tuvale erisebilsin diye ref disaridan verilir. */
   svgRef: React.RefObject<SVGSVGElement | null>;
 };
@@ -60,6 +61,7 @@ export default function Canvas({
   errorAtomIds,
   groupHighlight,
   aromaticRings,
+  showCarbons,
   svgRef,
 }: Props) {
   const dragRef = useRef<Drag>(null);
@@ -375,6 +377,7 @@ export default function Canvas({
       errorAtomIds={errorAtomIds}
       groupHighlight={groupHighlight}
       aromaticRings={aromaticRings}
+      showCarbons={showCarbons}
       highlight={{ atomIds: new Set(state.selectedAtoms) }}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}

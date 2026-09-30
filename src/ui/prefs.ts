@@ -1,16 +1,18 @@
 import type { ThemeChoice } from '../render/theme';
 
 /**
- * Gorunum tercihleri: tema ve aromatik halka gosterimi.
+ * Gorunum tercihleri: tema, aromatik halka ve karbon etiketi gosterimi.
  * Cizimden ayri bir anahtarda tutulur; biri bozulursa digeri etkilenmesin.
  */
 export type Prefs = {
   theme: ThemeChoice;
   /** Aromatik halkalar bir atlamali ikili bag yerine icte daireyle cizilsin mi */
   aromaticCircles: boolean;
+  /** Karbon atomlari etiketli (CH3, CH2…) mi gosterilsin, iskelet gosterimde mi */
+  showCarbons: boolean;
 };
 
-export const DEFAULT_PREFS: Prefs = { theme: 'auto', aromaticCircles: false };
+export const DEFAULT_PREFS: Prefs = { theme: 'auto', aromaticCircles: false, showCarbons: false };
 
 const KEY = 'kimyasalcizim:tercihler:v1';
 
@@ -38,5 +40,6 @@ export function parsePrefs(data: unknown): Prefs {
   return {
     theme: d.theme === 'light' || d.theme === 'dark' || d.theme === 'auto' ? d.theme : 'auto',
     aromaticCircles: d.aromaticCircles === true,
+    showCarbons: d.showCarbons === true,
   };
 }

@@ -60,12 +60,15 @@ export const BOND_GAP = 4;
 /**
  * Bir atomun etiketi cizilecek mi?
  *
- * Standart kimyasal gosterimde karbonlar cizgi koseleri olarak birakilir.
- * Ancak yalniz duran, yuklu, izotoplu veya tek bagli uc karbonlar
- * okunabilirlik icin yazilir.
+ * Standart (iskelet) gosterimde karbonlar cizgi koseleri olarak birakilir;
+ * yalniz duran, yuklu ya da izotoplu karbonlar yine de yazilir, yoksa o
+ * bilgi gorunmezdi.
+ *
+ * @param showCarbons "C Göster" acikken her karbon hidrojenleriyle yazilir
+ *   (CH3, CH2, CH). Bag cizgileri de bu karara gore etiket kenarinda kesilir.
  */
-export function isLabelVisible(mol: Molecule, atom: Atom): boolean {
-  if (atom.element !== 'C') return true;
+export function isLabelVisible(mol: Molecule, atom: Atom, showCarbons = false): boolean {
+  if (atom.element !== 'C' || showCarbons) return true;
   if (atom.charge !== 0 || atom.isotope !== undefined) return true;
   return bondsOf(mol, atom.id).length === 0;
 }
