@@ -33,10 +33,12 @@ export default function ExampleGallery({ onPick, onClose }: Props) {
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.stopPropagation();
-        onClose();
-      }
+      // Pencere acikken hicbir tus arkadaki tuvale ulasmasin: yoksa ornegin
+      // 'c' araci degistirir, Ctrl+Z cizimi geri alirdi. Olay pencerede
+      // (yakalama asamasinda) durdurulur; dugmelerin Enter/Bosluk ve Tab
+      // gibi varsayilan davranislari etkilenmez.
+      e.stopPropagation();
+      if (e.key === 'Escape') onClose();
     };
     window.addEventListener('keydown', onKeyDown, true);
     return () => window.removeEventListener('keydown', onKeyDown, true);

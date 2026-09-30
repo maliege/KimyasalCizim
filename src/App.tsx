@@ -20,8 +20,10 @@ import InfoPanel from './panels/InfoPanel';
 import { useMoleculeInfo } from './rdkit/useMoleculeInfo';
 import { COMBINE_WINDOW_MS, resolveKey } from './editor/keymap';
 import { isElement } from './model/elements';
-import { loadPrefs, savePrefs } from './ui/prefs';
-import { nextTheme } from './render/theme';
+import { DEFAULT_SETTINGS, applySetting, loadSettings, saveSettings } from './ui/settings';
+import { LabelOptionsContext } from './render/labelOptions';
+import type { LabelOptions } from './render/style';
+import SettingsDialog from './panels/SettingsDialog';
 import { findFunctionalGroup } from './model/functionalGroups';
 import { buildTaskUrl, parseShareHash } from './editor/shareLink';
 import { fromMolfile } from './model/molfile';
@@ -54,25 +56,38 @@ export default function App() {
   // Tek bir RDKit hesabi hem paneli hem tuvaldeki stereo etiketlerini besler.
   const { info, stereo, groups, pending, status } = useMoleculeInfo(state.molecule);
 
-  // Gorunum tercihleri: tema ve aromatik daire. Tema, kok elemandaki
-  // data-theme niteligiyle uygulanir; "otomatik"te nitelik kaldirilir ve
-  // sistem tercihi (prefers-color-scheme) gecerli olur.
-  const [prefs, setPrefs] = useState(loadPrefs);
+  // Gorunum ayarlari (bkz. ui/settings.ts). Tema, kok elemandaki data-theme
+  // niteligiyle uygulanir; "otomatik"te nitelik kaldirilir ve sistem tercihi
+  // (prefers-color-scheme) gecerli olur.
+  const [settings, setSettings] = useState(loadSettings);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   useEffect(() => {
-    savePrefs(prefs);
+    saveSettings(settings);
     const root = document.documentElement;
-    if (prefs.theme === 'auto') delete root.dataset.theme;
-    else root.dataset.theme = prefs.theme;
-  }, [prefs]);
+    if (settings.theme === 'auto') delete root.dataset.theme;
+    else root.dataset.theme = settings.theme;
+  }, [settings]);
+  /** Pencere ve hizli dugmeler duz anahtar-deger gonderir; dogrulama semada. */
+  const changeSetting = useCallback(
+    (key: string, value: unknown) => setSettings((s) => applySetting(s, key, value)),
+    [],
+  );
+
+  // Etiket ayarlari context ile cizime gider. useMemo: nesne her render'da
+  // yeniden olusursa context'i okuyan her bilesen bosuna yeniden cizilirdi.
+  const labelOptions = useMemo<LabelOptions>(
+    () => ({ carbonLabels: settings.carbonLabels, carbonHydrogens: settings.carbonHydrogens }),
+    [settings.carbonLabels, settings.carbonHydrogens],
+  );
 
   // Aromatik halkalari RDKit buluyor (fonksiyonel grup taramasinin parcasi);
   // daire gosterimi acikken onlari cizime veriyoruz.
   const aromaticRings = useMemo(
     () =>
-      prefs.aromaticCircles
+      settings.aromaticCircles
         ? (groups.find((g) => g.id === 'aromatic-ring')?.matches ?? null)
         : null,
-    [prefs.aromaticCircles, groups],
+    [settings.aromaticCircles, groups],
   );
 
   // Panelde tiklanan fonksiyonel grup tuvalde renklendirilir. Molekul
@@ -353,7 +368,25 @@ export default function App() {
         >
           🎓 {compact ? '' : 'Alıştırma'}
         </button>
+        <button
+          type="button"
+          style={styles.infoToggle}
+          onClick={() => setSettingsOpen(true)}
+          title="Ayarlar"
+          aria-label="Ayarlar"
+        >
+          ⚙
+        </button>
       </header>
+
+      {settingsOpen && (
+        <SettingsDialog
+          settings={settings}
+          onChange={changeSetting}
+          onReset={() => setSettings(DEFAULT_SETTINGS)}
+          onClose={() => setSettingsOpen(false)}
+        />
+      )}
 
       <div style={compact ? styles.bodyCompact : styles.body}>
         {/* DOM sirasi genis ekranin sirasi: arac sutunu solda, tuval ortada,
@@ -365,12 +398,9 @@ export default function App() {
           onZoom={handleZoom}
           onFit={handleFit}
           compact={compact}
-          theme={prefs.theme}
-          onCycleTheme={() => setPrefs((p) => ({ ...p, theme: nextTheme(p.theme) }))}
-          aromaticCircles={prefs.aromaticCircles}
-          onToggleAromatic={() => setPrefs((p) => ({ ...p, aromaticCircles: !p.aromaticCircles }))}
-          showCarbons={prefs.showCarbons}
-          onToggleCarbons={() => setPrefs((p) => ({ ...p, showCarbons: !p.showCarbons }))}
+          settings={settings}
+          onSettingChange={changeSetting}
+          onOpenSettings={() => setSettingsOpen(true)}
         />
 
         {/* Gorev seridi tuvalin UZERINE binmesin diye ayni sutunda, ustunde.
@@ -393,6 +423,7 @@ export default function App() {
             shareState={taskShare}
           />
         )}
+        <LabelOptionsContext.Provider value={labelOptions}>
         <main ref={canvasBoxRef} style={styles.canvasBox}>
           {notice && (
             <button type="button" style={styles.notice} onClick={() => setNotice(null)}>
@@ -410,10 +441,10 @@ export default function App() {
             errorAtomIds={errorAtomSet}
             groupHighlight={groupHighlight}
             aromaticRings={aromaticRings}
-            showCarbons={prefs.showCarbons}
             svgRef={svgRef}
           />
         </main>
+        </LabelOptionsContext.Provider>
         </div>
 
         {(!compact || infoOpen) && (

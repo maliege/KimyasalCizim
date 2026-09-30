@@ -3,6 +3,8 @@ import { distance } from '../model/geometry';
 import type { Atom, Bond, Molecule } from '../model/types';
 import type { Point as GeomPoint } from '../model/geometry';
 import { BOND_GAP, BOND_WIDTH, LABEL_RADIUS, isLabelVisible } from './style';
+import type { LabelOptions } from './style';
+import { useLabelOptions } from './labelOptions';
 import { INK } from './theme';
 
 type Props = {
@@ -11,8 +13,6 @@ type Props = {
   selected?: boolean;
   /** Aromatik daire gosteriminde halka bagi: derecesinden bagimsiz tekli cizgi */
   aromatic?: boolean;
-  /** Karbon etiketleri gorunuyorsa bag onlarin kenarinda kesilmeli */
-  showCarbons?: boolean;
 };
 
 /**
@@ -23,12 +23,14 @@ type Props = {
  * zincir) ikinci cizgi o tarafa, kisaltilmis olarak cizilir; aksi halde
  * iki cizgi bagin iki yanina simetrik yerlestirilir.
  */
-export default function BondShape({ molecule, bond, selected, aromatic, showCarbons }: Props) {
+export default function BondShape({ molecule, bond, selected, aromatic }: Props) {
+  // Gorunen etiketlerin kenarinda kesilir; hangi etiketin gorundugu ayara bagli.
+  const labelOptions = useLabelOptions();
   const a = getAtom(molecule, bond.a1);
   const b = getAtom(molecule, bond.a2);
   if (!a || !b) return null;
 
-  const [start, end] = trimForLabels(molecule, a, b, showCarbons);
+  const [start, end] = trimForLabels(molecule, a, b, labelOptions);
   // Icerik rengi (disa aktarilir); secim rengi arayuz katmanidir.
   const color = selected ? 'var(--accent)' : INK;
   const width = BOND_WIDTH + (selected ? 1 : 0);
@@ -160,12 +162,17 @@ function shorten(a: GeomPoint, b: GeomPoint, fraction: number): [GeomPoint, Geom
 }
 
 /** Etiketi gorunen uclarda bag cizgisini metnin disinda baslatir. */
-function trimForLabels(mol: Molecule, a: Atom, b: Atom, showCarbons = false): [GeomPoint, GeomPoint] {
+function trimForLabels(
+  mol: Molecule,
+  a: Atom,
+  b: Atom,
+  options: LabelOptions,
+): [GeomPoint, GeomPoint] {
   const len = distance(a, b) || 1;
   const ux = (b.x - a.x) / len;
   const uy = (b.y - a.y) / len;
-  const trimA = isLabelVisible(mol, a, showCarbons) ? LABEL_RADIUS : 0;
-  const trimB = isLabelVisible(mol, b, showCarbons) ? LABEL_RADIUS : 0;
+  const trimA = isLabelVisible(mol, a, options) ? LABEL_RADIUS : 0;
+  const trimB = isLabelVisible(mol, b, options) ? LABEL_RADIUS : 0;
   return [
     { x: a.x + ux * trimA, y: a.y + uy * trimA },
     { x: b.x - ux * trimB, y: b.y - uy * trimB },

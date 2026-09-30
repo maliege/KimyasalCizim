@@ -10,8 +10,8 @@ import type { BondOrder } from '../model/types';
 import { elementColor } from '../render/style';
 import ElementPicker from './ElementPicker';
 import type { TransformOp } from '../model/transform';
-import { THEME_LABELS } from '../render/theme';
-import type { ThemeChoice } from '../render/theme';
+import { SETTINGS, nextChoice } from '../ui/settings';
+import type { SettingDef, Settings } from '../ui/settings';
 
 type Props = {
   state: EditorState;
@@ -20,12 +20,10 @@ type Props = {
   onFit: () => void;
   /** Dar ekran: dikey panel yerine yatay kaydirilabilir serit */
   compact?: boolean;
-  theme: ThemeChoice;
-  onCycleTheme: () => void;
-  aromaticCircles: boolean;
-  onToggleAromatic: () => void;
-  showCarbons: boolean;
-  onToggleCarbons: () => void;
+  settings: Settings;
+  /** Deger semaya gore App'te dogrulanir (applySetting) */
+  onSettingChange: (key: string, value: unknown) => void;
+  onOpenSettings: () => void;
 };
 
 
@@ -60,12 +58,9 @@ export default function Toolbar({
   onZoom,
   onFit,
   compact = false,
-  theme,
-  onCycleTheme,
-  aromaticCircles,
-  onToggleAromatic,
-  showCarbons,
-  onToggleCarbons,
+  settings,
+  onSettingChange,
+  onOpenSettings,
 }: Props) {
   const [pickerOpen, setPickerOpen] = useState(false);
 
@@ -250,26 +245,47 @@ export default function Toolbar({
           <Button title="Tuvale sığdır" onClick={onFit} grow>
             <span style={{ fontSize: 11 }}>Sığdır</span>
           </Button>
-          <Button
-            title="Karbon atomlarını etiketle göster (CH₃, CH₂…) ya da iskelet gösterime dön"
-            active={showCarbons}
-            onClick={onToggleCarbons}
-            wide={!compact}
-          >
-            <span style={{ fontSize: 11 }}>C Karbonları göster</span>
-          </Button>
-          <Button
-            title="Aromatik halkaları içte daireyle göster (Kekulé yerine)"
-            active={aromaticCircles}
-            onClick={onToggleAromatic}
-            wide={!compact}
-          >
-            <span style={{ fontSize: 11 }}>⌬ Aromatik daire</span>
-          </Button>
-          <Button title="Tema: Otomatik → Açık → Koyu" onClick={onCycleTheme} wide={!compact}>
-            <span style={{ fontSize: 11 }}>
-              {theme === 'dark' ? '☾' : theme === 'light' ? '☀' : '◐'} Tema: {THEME_LABELS[theme]}
-            </span>
+          {/* Semada "quick" isaretli ayarlar: acik/kapali dugme ya da
+              tiklandikca secenekler arasinda donen dugme. */}
+          {(SETTINGS as readonly SettingDef[])
+            .filter((def) => def.quick)
+            .map((def) => {
+              const value = (settings as Record<string, unknown>)[def.key];
+              const name = def.short ?? def.label;
+              if (def.type === 'boolean') {
+                return (
+                  <Button
+                    key={def.key}
+                    title={def.help}
+                    active={value === true}
+                    onClick={() => onSettingChange(def.key, !value)}
+                    wide={!compact}
+                  >
+                    <span style={{ fontSize: 11 }}>{name}</span>
+                  </Button>
+                );
+              }
+              if (def.type === 'choice') {
+                const option = def.options.find((o) => o.value === value);
+                return (
+                  <Button
+                    key={def.key}
+                    title={`${def.help} (tıkladıkça değişir)`}
+                    onClick={() =>
+                      onSettingChange(def.key, nextChoice(def, String(value)))
+                    }
+                    wide={!compact}
+                  >
+                    <span style={{ fontSize: 11 }}>
+                      {name}: {option?.label}
+                    </span>
+                  </Button>
+                );
+              }
+              return null;
+            })}
+          <Button title="Tüm görünüm ayarları" onClick={onOpenSettings} wide={!compact}>
+            <span style={{ fontSize: 11 }}>⚙ Tüm ayarlar…</span>
           </Button>
         </div>
       </Section>

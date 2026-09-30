@@ -81,7 +81,7 @@ Dönüştürücü (`sharp`) `npx` ile geçici olarak çalışır; kalıcı bağ�
 | Yük / stereo | İlgili aracı seçip atoma ya da bağa tıklayın |
 | **Zincir** | Zincir aracıyla sürükleyin: sürükledikçe uzayan zikzak karbon zinciri |
 | **İzotop** | İzotop aracıyla atoma tıkladıkça ¹²C → ¹³C → ¹⁴C (H → D → T …) |
-| **Karbonları göster** | «Görünüm» → «C Göster»: her karbon hidrojenleriyle yazılır (CH₃, CH₂, CH); kapalıyken iskelet gösterim |
+| **Ayarlar** | Başlıktaki ⚙ ya da sol paneldeki «Tüm ayarlar…»: tema, aromatik daire, karbon etiketleri, karbonlarda hidrojen |
 | **Döndür / aynala** | «Dönüştür» bölümü: seçimi, seçim yoksa tüm yapıyı. Aynalama stereokimyayı korur |
 | **Paylaş** | «Bağlantı» düğmesi yapıyı açan bir adres üretir (`#smiles=…`) |
 | Düzenle | Koordinatları RDKit'e yeniden ürettirir |
@@ -158,12 +158,26 @@ doğru/yanlış değil, *neden* yanlış olduğunu da söyler:
 
 Belirli bir görevi bağlantıyla paylaşabilirsiniz: `maege.tr/#gorev=aspirin`.
 
-### Görünüm
+### Görünüm ve ayarlar
 
-**Tema** Otomatik (sistem tercihi) / Açık / Koyu arasında değişir. Dışa aktarılan
-SVG ve PNG ekranda hangi tema açık olursa olsun **her zaman açık temadır** —
-belgeye beyaz zemin, koyu mürekkep gider. **⌬ Daire** aromatik halkaları bir
-atlamalı ikili bağlar yerine içte daireyle gösterir.
+Tüm görünüm ayarları **⚙ Ayarlar** penceresinde; sık kullanılanlar sol
+paneldeki «Görünüm» bölümünde de tek tıkla değişir. Ayarlar bu cihazda saklanır
+ve paylaşım bağlantısına girmez.
+
+| Ayar | Seçenekler |
+|---|---|
+| Tema | Otomatik (sistem) · Açık · Koyu |
+| Aromatik daire | Aromatik halkayı Kekulé yerine içte daireyle gösterir |
+| Karbon etiketleri | Gizli (iskelet) · Uçlar (yalnız CH₃ uçları) · Hepsi |
+| Karbonlarda hidrojen | Göster (CH₂) · Gizle (C) — OH, NH₂ gibi heteroatomlar her zaman hidrojenleriyle yazılır |
+
+Dışa aktarılan SVG ve PNG ekranda hangi tema açık olursa olsun **her zaman açık
+temadır** — belgeye beyaz zemin, koyu mürekkep gider.
+
+**Yeni bir ayar eklemek:** `src/ui/settings.ts` içindeki `SETTINGS` listesine bir
+kayıt eklenir. Tip, varsayılan, doğrulama, Ayarlar penceresindeki satır ve (`quick`
+işaretliyse) sol paneldeki düğme bu kayıttan kendiliğinden üretilir; geriye yalnız
+ayarı kullanan çizim kodu kalır.
 
 ### Stereokimya
 
