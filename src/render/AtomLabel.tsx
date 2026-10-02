@@ -1,6 +1,6 @@
-import { implicitHydrogens, hasKnownValence } from '../model/valence';
 import type { Atom, Molecule } from '../model/types';
-import { ATOM_FONT_SIZE, chargeText, elementColor, hydrogensGoLeft } from './style';
+import { ATOM_FONT_SIZE, chargeText, elementColor, hydrogensGoLeft, shownHydrogens } from './style';
+import { useLabelOptions } from './labelOptions';
 
 type Props = {
   molecule: Molecule;
@@ -15,7 +15,8 @@ type Props = {
  * saga bagliysa "HO" olur. Bu, cizgilerin metnin uzerinden gecmesini onler.
  */
 export default function AtomLabel({ molecule, atom }: Props) {
-  const hydrogens = hasKnownValence(atom.element) ? implicitHydrogens(molecule, atom) : 0;
+  // Hidrojen sayisi etiket ayarina bagli (karbonlarda gizlenebilir).
+  const hydrogens = shownHydrogens(molecule, atom, useLabelOptions());
   const charge = chargeText(atom.charge);
   const color = elementColor(atom.element);
   const hydrogensOnLeft = hydrogens > 0 && hydrogensGoLeft(molecule, atom);

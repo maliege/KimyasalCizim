@@ -4,10 +4,12 @@ import { atomsInRect, getAtom } from '../model/molecule';
 import { atomAt, snapToGrid } from '../model/geometry';
 import type { Point } from '../model/geometry';
 import MoleculeSvg from '../render/MoleculeSvg';
+import { CANVAS_BG } from '../render/theme';
 import type { Rect } from '../render/MoleculeSvg';
 import type { AtomId, Molecule } from '../model/types';
 import type { EditorAction, EditorState } from './editorReducer';
 import { finishBond, finishMove, previewMove, resolveTap } from './gestures';
+import { buildChain, chainPoints } from '../model/chain';
 import { toWorld, zoomAt, panBy, pinchTo } from './viewport';
 import type { Viewport } from './viewport';
 import type { StereoLabels } from '../rdkit/useMoleculeInfo';
@@ -22,6 +24,9 @@ type Props = {
   onViewportChange: (viewport: Viewport) => void;
   /** CIP stereo etiketleri (RDKit'ten, gecikmeli hesaplanir) */
   stereo?: StereoLabels | null;
+  errorAtomIds?: Set<string>;
+  groupHighlight?: { color: string; atomIds: Set<string> } | null;
+  aromaticRings?: string[][] | null;
   /** Disa aktarma tuvale erisebilsin diye ref disaridan verilir. */
   svgRef: React.RefObject<SVGSVGElement | null>;
 };
@@ -29,6 +34,7 @@ type Props = {
 /** Surukleme oturumu — pointerdown ile acilir, pointerup ile kapanir. */
 type Drag =
   | { kind: 'bond'; fromAtom: AtomId; moved: boolean; molAtStart: Molecule }
+  | { kind: 'chain'; fromAtom: AtomId; moved: boolean; molAtStart: Molecule }
   | {
       kind: 'move';
       /** Tasinan atomlar: tek atom ya da tum secim */
@@ -51,6 +57,9 @@ export default function Canvas({
   viewport,
   onViewportChange,
   stereo,
+  errorAtomIds,
+  groupHighlight,
+  aromaticRings,
   svgRef,
 }: Props) {
   const dragRef = useRef<Drag>(null);
@@ -66,6 +75,7 @@ export default function Canvas({
    */
   const pinchRef = useRef<{ points: readonly [Point, Point]; viewport: Viewport } | null>(null);
   const [preview, setPreview] = useState<Rect | null>(null);
+  const [chainPreview, setChainPreview] = useState<{ points: Point[]; label: string } | null>(null);
   const [selectionRect, setSelectionRect] = useState<Rect | null>(null);
   const [hoverAtom, setHoverAtom] = useState<AtomId | null>(null);
   const { molecule, tool } = state;
@@ -113,7 +123,8 @@ export default function Canvas({
     setSelectionRect(null);
     setHoverAtom(null);
     // Baslamis bir cizim varsa modeli jest oncesine dondur.
-    if (drag && (drag.kind === 'bond' || drag.kind === 'move')) {
+    setChainPreview(null);
+    if (drag && (drag.kind === 'bond' || drag.kind === 'chain' || drag.kind === 'move')) {
       dispatch({ type: 'preview', molecule: drag.molAtStart });
     }
   }
@@ -167,6 +178,16 @@ export default function Canvas({
         dispatch({ type: 'preview', molecule: outcome.molecule });
         return;
 
+      case 'startChain':
+        dragRef.current = {
+          kind: 'chain',
+          fromAtom: outcome.fromAtom,
+          moved: false,
+          molAtStart: outcome.molecule,
+        };
+        dispatch({ type: 'preview', molecule: outcome.molecule });
+        return;
+
       case 'startMove':
         dragRef.current = {
           kind: 'move',
@@ -216,6 +237,14 @@ export default function Canvas({
 
     if (drag.kind === 'box') {
       setSelectionRect({ x1: drag.start.x, y1: drag.start.y, x2: point.x, y2: point.y });
+      return;
+    }
+
+    if (drag.kind === 'chain') {
+      const origin = getAtom(drag.molAtStart, drag.fromAtom)!;
+      const points = chainPoints(origin, point, !e.shiftKey);
+      setChainPreview({ points: [origin, ...points], label: `+${points.length} C` });
+      drag.moved = true;
       return;
     }
 
@@ -283,6 +312,18 @@ export default function Canvas({
       return;
     }
 
+    if (drag.kind === 'chain') {
+      setChainPreview(null);
+      if (drag.moved) {
+        const origin = getAtom(drag.molAtStart, drag.fromAtom)!;
+        commit(buildChain(drag.molAtStart, drag.fromAtom, chainPoints(origin, point, !e.shiftKey)).molecule);
+      } else {
+        // Suruklemeden tiklamak tek bag ekler — bag aracinin davranisi.
+        commit(finishBond(drag.molAtStart, drag.fromAtom, point, false, 1, false, hitRadiusFor(e)));
+      }
+      return;
+    }
+
     if (drag.kind === 'bond') {
       commit(
         finishBond(
@@ -327,9 +368,13 @@ export default function Canvas({
       height={height}
       viewport={viewport}
       preview={preview}
+      chainPreview={chainPreview}
       selectionRect={selectionRect}
       hoverAtomId={hoverAtom}
       stereo={stereo}
+      errorAtomIds={errorAtomIds}
+      groupHighlight={groupHighlight}
+      aromaticRings={aromaticRings}
       highlight={{ atomIds: new Set(state.selectedAtoms) }}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
@@ -339,7 +384,7 @@ export default function Canvas({
       onPointerCancel={handlePointerUp}
       onPointerLeave={() => setHoverAtom(null)}
       onContextMenu={(e) => e.preventDefault()}
-      style={{ display: 'block', background: '#fff', touchAction: 'none', cursor: cursorFor(tool) }}
+      style={{ display: 'block', background: CANVAS_BG, touchAction: 'none', cursor: cursorFor(tool) }}
     />
   );
 }

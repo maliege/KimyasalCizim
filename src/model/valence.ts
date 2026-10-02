@@ -64,6 +64,25 @@ function chargeAdjustment(element: string, charge: number): number {
 }
 
 /**
+ * Atom izin verilen en yuksek degerligi asiyor mu? (bes bagli karbon gibi)
+ *
+ * RDKit yapinin gecersiz oldugunu soyler ama hangi atomun sorunlu oldugunu
+ * soylemez; ogrenci icin asil bilgi o. Degerligi bilinmeyen elementler
+ * (gecis metalleri) hic isaretlenmez — onlarda "fazla bag" diye bir sey yok.
+ */
+export function exceedsValence(mol: Molecule, atom: Atom): boolean {
+  const valences = VALENCES[atom.element];
+  if (!valences) return false;
+  const max = Math.max(...valences) + chargeAdjustment(atom.element, atom.charge);
+  return bondOrderSum(mol, atom.id) + (atom.explicitH ?? 0) > max;
+}
+
+/** Degerligi asilmis tum atomlarin kimlikleri. */
+export function valenceErrors(mol: Molecule): string[] {
+  return mol.atoms.filter((a) => exceedsValence(mol, a)).map((a) => a.id);
+}
+
+/**
  * Kapali formul (Hill sistemi): once C, sonra H, ardindan diger elementler
  * alfabetik. Karbon yoksa tum elementler alfabetik siralanir.
  */

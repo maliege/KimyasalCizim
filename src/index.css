@@ -1,6 +1,20 @@
+/*
+ * Tema degiskenleri.
+ *
+ * Iki tur degisken var (bkz. src/render/theme.ts):
+ * - Arayuz: --bg, --panel, --surface, --text … Burada tanimli, her yerde
+ *   dogrudan var(--ad) ile kullanilir.
+ * - Cizim icerigi: --ink, --canvas-bg, --el-N … Acik temada BILEREK
+ *   tanimsiz; kodda var(--ad, acikRenk) diye yazilir ve yedek deger kullanilir.
+ *   Dışa aktarim yedegi okur, boylece belgeye giden gorsel hep acik temadir.
+ *   Koyu tema yalnizca bu degiskenleri tanimlayarak cizimi degistirir.
+ */
 :root {
+  color-scheme: light;
+
   --bg: #f7f8fa;
   --panel: #ffffff;
+  --surface: #ffffff;
   --border: #d8dce3;
   --text: #1c2029;
   --muted: #6b7280;
@@ -8,9 +22,115 @@
   --accent-soft: #dbeafe;
   --danger: #dc2626;
 
+  /* Alistirma sonuc tonlari */
+  --good-fg: #15803d;
+  --good-bg: #dcfce7;
+  --good-border: #86efac;
+  --near-fg: #92400e;
+  --near-bg: #fef3c7;
+  --near-border: #fcd34d;
+  --bad-bg: #fee2e2;
+  --bad-border: #fca5a5;
+
+  /* Periyodik tablo bloklari */
+  --block-s: #fdecec;
+  --block-p: #fdf6e3;
+  --block-d: #e9f1fd;
+  --block-f: #e9f6ec;
+
   font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
   color: var(--text);
   background: var(--bg);
+}
+
+/*
+ * Koyu tema iki yoldan gelir: sistem tercihi (kullanici "Açık" secmediyse)
+ * ya da elle "Koyu" secimi. CSS bir kurali iki secicide paylastiramadigi icin
+ * degerler iki kez yaziliyor; biri degisirse digerini de guncelleyin.
+ */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+    --bg: #111418;
+    --panel: #181c22;
+    --surface: #20252d;
+    --border: #2f3640;
+    --text: #e6e9ee;
+    --muted: #9aa3af;
+    --accent: #5b8def;
+    --accent-soft: #1e2d4d;
+    --danger: #f87171;
+    --good-fg: #86efac;
+    --good-bg: #0f2e1b;
+    --good-border: #166534;
+    --near-fg: #fcd34d;
+    --near-bg: #2e240b;
+    --near-border: #854d0e;
+    --bad-bg: #3a1414;
+    --bad-border: #7f1d1d;
+    --block-s: #3a2226;
+    --block-p: #3a3320;
+    --block-d: #1f2c40;
+    --block-f: #1f3326;
+    /* cizim icerigi */
+    --canvas-bg: #1a1e24;
+    --ink: #e6e9ee;
+    --ink-soft: #b5bcc6;
+    --el-C: #e6e9ee;
+    --el-H: #a3aab5;
+    --el-N: #7b9bff;
+    --el-O: #ff7a7a;
+    --el-S: #f2cc55;
+    --el-P: #ffab5e;
+    --el-F: #5fd99a;
+    --el-Cl: #5fd99a;
+    --el-Br: #e0906a;
+    --el-I: #c08cff;
+    --el-B: #e8aaaa;
+    --el-Si: #d0b090;
+    --el-Se: #e0b040;
+  }
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #111418;
+  --panel: #181c22;
+  --surface: #20252d;
+  --border: #2f3640;
+  --text: #e6e9ee;
+  --muted: #9aa3af;
+  --accent: #5b8def;
+  --accent-soft: #1e2d4d;
+  --danger: #f87171;
+  --good-fg: #86efac;
+  --good-bg: #0f2e1b;
+  --good-border: #166534;
+  --near-fg: #fcd34d;
+  --near-bg: #2e240b;
+  --near-border: #854d0e;
+  --bad-bg: #3a1414;
+  --bad-border: #7f1d1d;
+  --block-s: #3a2226;
+  --block-p: #3a3320;
+  --block-d: #1f2c40;
+  --block-f: #1f3326;
+  --canvas-bg: #1a1e24;
+  --ink: #e6e9ee;
+  --ink-soft: #b5bcc6;
+  --el-C: #e6e9ee;
+  --el-H: #a3aab5;
+  --el-N: #7b9bff;
+  --el-O: #ff7a7a;
+  --el-S: #f2cc55;
+  --el-P: #ffab5e;
+  --el-F: #5fd99a;
+  --el-Cl: #5fd99a;
+  --el-Br: #e0906a;
+  --el-I: #c08cff;
+  --el-B: #e8aaaa;
+  --el-Si: #d0b090;
+  --el-Se: #e0b040;
 }
 
 * {
@@ -21,6 +141,7 @@ body {
   margin: 0;
   height: 100vh;
   overflow: hidden;
+  background: var(--bg);
 }
 
 #root {

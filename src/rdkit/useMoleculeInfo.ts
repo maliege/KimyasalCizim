@@ -3,7 +3,7 @@ import { toMolfile } from '../model/molfile';
 import { findBondBetween } from '../model/molecule';
 import type { Molecule } from '../model/types';
 import { analyze } from './RdkitService';
-import type { MoleculeInfo, StereoTags } from './RdkitService';
+import type { FoundGroup, MoleculeInfo, StereoTags } from './RdkitService';
 import { useRdkit } from './useRdkit';
 
 const EMPTY: MoleculeInfo = {
@@ -13,7 +13,11 @@ const EMPTY: MoleculeInfo = {
   inchiKey: null,
   descriptors: null,
   stereo: null,
+  groups: null,
 };
+
+/** Bulunan bir fonksiyonel grup, eslesmeleri kendi atom kimliklerimizle. */
+export type GroupHits = { id: string; matches: string[][] };
 
 /** Cizim uzerinde gosterilecek CIP etiketleri, kendi kimliklerimizle anahtarli. */
 export type StereoLabels = {
@@ -33,6 +37,7 @@ export function useMoleculeInfo(molecule: Molecule, debounceMs = 300) {
   const { status, rdkit } = useRdkit();
   const [info, setInfo] = useState<MoleculeInfo | null>(null);
   const [stereo, setStereo] = useState<StereoLabels | null>(null);
+  const [groups, setGroups] = useState<GroupHits[]>([]);
   const [pending, setPending] = useState(false);
 
   useEffect(() => {
@@ -41,6 +46,7 @@ export function useMoleculeInfo(molecule: Molecule, debounceMs = 300) {
     if (molecule.atoms.length === 0) {
       setInfo(EMPTY);
       setStereo(null);
+      setGroups([]);
       setPending(false);
       return;
     }
@@ -52,13 +58,14 @@ export function useMoleculeInfo(molecule: Molecule, debounceMs = 300) {
       // Etiketleri *analiz edilen* molekule gore esle; sonradan degisen
       // bir cizimde indeksler kayabilir.
       setStereo(result.stereo ? mapStereoToIds(result.stereo, molecule) : null);
+      setGroups(result.groups ? mapGroupsToIds(result.groups, molecule) : []);
       setPending(false);
     }, debounceMs);
 
     return () => clearTimeout(timer);
   }, [molecule, rdkit, status, debounceMs]);
 
-  return { info, stereo, pending, ready: status === 'ready', status };
+  return { info, stereo, groups, pending, ready: status === 'ready', status };
 }
 
 /**
@@ -84,4 +91,14 @@ function mapStereoToIds(tags: StereoTags, molecule: Molecule): StereoLabels {
   }
 
   return { atoms, bonds };
+}
+
+/** Grup eslesmelerindeki RDKit atom indekslerini kendi kimliklerimize cevirir. */
+function mapGroupsToIds(groups: FoundGroup[], molecule: Molecule): GroupHits[] {
+  return groups.map((g) => ({
+    id: g.id,
+    matches: g.matches.map((indices) =>
+      indices.map((i) => molecule.atoms[i]?.id).filter((id): id is string => id !== undefined),
+    ),
+  }));
 }

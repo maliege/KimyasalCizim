@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { addAtom, addBond, emptyMolecule, getAtom } from '../model/molecule';
 import { buildRing } from '../model/templates';
-import { chargeText, hydrogensGoLeft, isLabelVisible, labelText } from './style';
+import { chargeText, hydrogensGoLeft, isLabelVisible, labelText, shownHydrogens } from './style';
 import type { Molecule } from '../model/types';
 
 /** Merkezde bir O, verilen konumda bir komsu karbon. */
@@ -76,6 +76,48 @@ describe('isLabelVisible', () => {
   it('yalnız duran karbonu etiketler', () => {
     const mol = addAtom(emptyMolecule(), { element: 'C', x: 0, y: 0 }).molecule;
     expect(isLabelVisible(mol, mol.atoms[0])).toBe(true);
+  });
+
+  it('carbonLabels: all — halka karbonlarını da etiketler', () => {
+    const benzene = buildRing(emptyMolecule(), { x: 0, y: 0 }, 6, true).molecule;
+    const all = { carbonLabels: 'all', carbonHydrogens: 'show' } as const;
+    expect(benzene.atoms.every((a) => isLabelVisible(benzene, a, all))).toBe(true);
+    expect(benzene.atoms.map((a) => labelText(benzene, a, all))).toEqual(Array(6).fill('CH'));
+  });
+
+  it('carbonLabels: terminal — yalnız zincir uçlarını etiketler', () => {
+    // propan: C1-C2-C3 → uçlar yazılır, ortadaki yazılmaz
+    let m = emptyMolecule();
+    const ids: string[] = [];
+    for (let i = 0; i < 3; i++) {
+      const a = addAtom(m, { element: 'C', x: i * 40, y: 0 });
+      m = a.molecule;
+      ids.push(a.atomId);
+      if (i > 0) m = addBond(m, ids[i - 1], ids[i], 1);
+    }
+    const terminal = { carbonLabels: 'terminal', carbonHydrogens: 'show' } as const;
+    expect(ids.map((id) => isLabelVisible(m, getAtom(m, id)!, terminal))).toEqual([true, false, true]);
+    expect(labelText(m, getAtom(m, ids[0])!, terminal)).toBe('CH3');
+  });
+
+  it('carbonHydrogens: hide — karbonda hidrojeni gizler', () => {
+    const benzene = buildRing(emptyMolecule(), { x: 0, y: 0 }, 6, true).molecule;
+    const opts = { carbonLabels: 'all', carbonHydrogens: 'hide' } as const;
+    expect(labelText(benzene, benzene.atoms[0], opts)).toBe('C');
+    expect(shownHydrogens(benzene, benzene.atoms[0], opts)).toBe(0);
+  });
+
+  it('carbonHydrogens: hide heteroatomlara dokunmaz (OH → O yanıltıcı olurdu)', () => {
+    const { mol, oxygenId } = hydroxylWithNeighborAt(40, 0);
+    const opts = { carbonLabels: 'all', carbonHydrogens: 'hide' } as const;
+    expect(labelText(mol, getAtom(mol, oxygenId)!, opts)).toBe('OH');
+  });
+
+  it('hiçbir ayarda heteroatom gizlenmez', () => {
+    const { mol, oxygenId } = hydroxylWithNeighborAt(40, 0);
+    for (const carbonLabels of ['hidden', 'terminal', 'all'] as const) {
+      expect(isLabelVisible(mol, getAtom(mol, oxygenId)!, { carbonLabels, carbonHydrogens: 'show' })).toBe(true);
+    }
   });
 
   it('yüklü karbonu etiketler', () => {

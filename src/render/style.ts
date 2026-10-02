@@ -1,4 +1,5 @@
 import { implicitHydrogens, hasKnownValence } from '../model/valence';
+import { themed } from './theme';
 import { bondsOf, getAtom, neighborsOf } from '../model/molecule';
 import { angleBetween } from '../model/geometry';
 import type { Atom, Molecule } from '../model/types';
@@ -38,7 +39,15 @@ const ELEMENT_COLORS: Record<string, string> = {
   He: '#5fa8b8', Ne: '#4f9ab8', Ar: '#4a90b0', Kr: '#3f84a8', Xe: '#3878a0',
 };
 
-export const elementColor = (element: string): string => ELEMENT_COLORS[element] ?? '#3f3f46';
+/**
+ * Elementin cizim rengi, tema degiskeni olarak: var(--el-N, #2050d0).
+ * Koyu tema bu degiskenleri acik tonlarla ezer; disa aktarimda yedek (acik
+ * tema) degerine cozulur. Bkz. theme.ts.
+ */
+export const elementColor = (element: string): string => {
+  const light = ELEMENT_COLORS[element];
+  return light ? themed(`el-${element}`, light) : themed('ink-soft', '#3f3f46');
+};
 
 /** Etiket yaricapi — bag cizgileri bu kadar kisaltilir. */
 export const LABEL_RADIUS = 11;
@@ -49,21 +58,69 @@ export const BOND_WIDTH = 1.6;
 export const BOND_GAP = 4;
 
 /**
+ * Etiket gosterim secenekleri — ayarlarin cizimi ilgilendiren kismi.
+ * Karar fonksiyonlari bunu PARAMETRE olarak alir (context okumaz) ki React'siz
+ * test edilebilsinler. Bilesenler degeri LabelOptionsContext'ten alir.
+ */
+export type LabelOptions = {
+  /** hidden: iskelet gosterim · terminal: yalniz zincir uclari · all: her karbon */
+  carbonLabels: 'hidden' | 'terminal' | 'all';
+  /** Yazilan karbonlarda hidrojenler gosterilsin mi (CH2 / C) */
+  carbonHydrogens: 'show' | 'hide';
+};
+
+export const DEFAULT_LABEL_OPTIONS: LabelOptions = { carbonLabels: 'hidden', carbonHydrogens: 'show' };
+
+/**
  * Bir atomun etiketi cizilecek mi?
  *
- * Standart kimyasal gosterimde karbonlar cizgi koseleri olarak birakilir.
- * Ancak yalniz duran, yuklu, izotoplu veya tek bagli uc karbonlar
- * okunabilirlik icin yazilir.
+ * Heteroatomlar her zaman yazilir. Karbonlarda karar ayara bagli; ama yalniz
+ * duran, yuklu ya da izotoplu karbonlar her ayarda yazilir, yoksa o bilgi
+ * gorunmezdi. Bag cizgileri de bu karara gore etiket kenarinda kesilir.
  */
-export function isLabelVisible(mol: Molecule, atom: Atom): boolean {
+export function isLabelVisible(
+  mol: Molecule,
+  atom: Atom,
+  options: LabelOptions = DEFAULT_LABEL_OPTIONS,
+): boolean {
   if (atom.element !== 'C') return true;
   if (atom.charge !== 0 || atom.isotope !== undefined) return true;
-  return bondsOf(mol, atom.id).length === 0;
+  const degree = bondsOf(mol, atom.id).length;
+  if (degree === 0) return true;
+  switch (options.carbonLabels) {
+    case 'all':
+      return true;
+    case 'terminal':
+      return degree === 1;
+    case 'hidden':
+      return false;
+  }
+}
+
+/**
+ * Etikette yazilacak hidrojen sayisi.
+ *
+ * Tek yerde hesaplanir: hem etiket metni hem AtomLabel bunu kullanir, yoksa
+ * gizleme ayari birinde uygulanip digerinde unutulabilirdi. Gizleme yalniz
+ * karbonlari etkiler; OH → O yazmak onu radikal gibi gosterirdi.
+ */
+export function shownHydrogens(
+  mol: Molecule,
+  atom: Atom,
+  options: LabelOptions = DEFAULT_LABEL_OPTIONS,
+): number {
+  if (!hasKnownValence(atom.element)) return 0;
+  if (atom.element === 'C' && options.carbonHydrogens === 'hide') return 0;
+  return implicitHydrogens(mol, atom);
 }
 
 /** Etiket metni: element + ortuk H'ler (or. "OH", "NH2", "CH4"). */
-export function labelText(mol: Molecule, atom: Atom): string {
-  const h = hasKnownValence(atom.element) ? implicitHydrogens(mol, atom) : 0;
+export function labelText(
+  mol: Molecule,
+  atom: Atom,
+  options: LabelOptions = DEFAULT_LABEL_OPTIONS,
+): string {
+  const h = shownHydrogens(mol, atom, options);
   if (h === 0) return atom.element;
   if (h === 1) return `${atom.element}H`;
   return `${atom.element}H${h}`;

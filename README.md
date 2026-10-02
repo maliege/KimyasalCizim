@@ -36,7 +36,22 @@ için gerekli: sürüm yükseltilince eski WASM sonsuza dek önbellekte kalmaz.
 Yeni sürümler sessizce devralınır (`registerType: 'autoUpdate'`).
 
 > **Yayınlarken:** service worker yalnızca HTTPS üzerinde (ya da localhost'ta)
-> çalışır. `dist/` klasörünü statik olarak sunmanız yeterli; sunucu tarafı yok.
+> çalışır. `dist/` klasörünün **içindekileri** statik olarak sunmanız yeterli;
+> sunucu tarafı yok.
+>
+> **IIS (Windows hosting, `chemdraw.maege.tr`):** ek dosya gerekmez. Manifest
+> bilerek `manifest.json` adıyla üretilir, çünkü IIS `.webmanifest` uzantısını
+> tanımaz ve dosya dursa bile 404 verir. HTTPS yönlendirmesini Plesk'teki
+> "HTTP'den HTTPS'e kalıcı yönlendirme" ayarından açın.
+>
+> ⚠️ `deploy/iis/web.config` dosyasını, site başka bir uygulamayla **aynı IIS
+> uygulama havuzunu paylaşıyorsa yüklemeyin.** Paylaşılan havuzda yüklendiğinde
+> `maege.tr` (Blazor Server) 503 ile çöktü; yalnız Blazor'u yeniden yayımlamak
+> düzeltti. Dosya bu yüzden derlemeye girmiyor.
+>
+> **Apache (Bluehost vb.):** `dist/` içindeki `.htaccess` sıkıştırma, MIME türleri,
+> HTTPS ve önbellek kurallarını getirir. Gizli dosya olduğu için yükleme aracında
+> gizli dosyaları göster seçeneğini açın.
 
 İkonlar `scripts/*.svg` dosyalarından üretilir ve depoya işlenir:
 
@@ -61,16 +76,21 @@ Dönüştürücü (`sharp`) `npx` ile geçici olarak çalışır; kalıcı bağ�
 | **Çoklu seçim** | «Seç ve taşı» ile boş alanda sürükleyerek kutu çizin; seçimi topluca taşıyın |
 | **Yakınlaştırma** | Fare tekerleği (imlecin altındaki nokta sabit kalır) |
 | **Kaydırma** | Ctrl+sürükleme veya orta fare tuşu |
-| **SMILES'ten çizim** | Sağ paneldeki kutuya yapıştırıp «Çiz» |
+| **SMILES ya da isimden çizim** | Sağ paneldeki kutuya SMILES ya da ad yazıp «Çiz» — ayrıntı aşağıda |
 | **Örnek galerisi** | Sağ panelde «Örnekler» — 24 hazır molekül (aspirin, kafein, glikoz…) |
 | Yük / stereo | İlgili aracı seçip atoma ya da bağa tıklayın |
+| **Zincir** | Zincir aracıyla sürükleyin: sürükledikçe uzayan zikzak karbon zinciri |
+| **İzotop** | İzotop aracıyla atoma tıkladıkça ¹²C → ¹³C → ¹⁴C (H → D → T …) |
+| **Ayarlar** | Başlıktaki ⚙ ya da sol paneldeki «Tüm ayarlar…»: tema, aromatik daire, karbon etiketleri, karbonlarda hidrojen |
+| **Döndür / aynala** | «Dönüştür» bölümü: seçimi, seçim yoksa tüm yapıyı. Aynalama stereokimyayı korur |
+| **Paylaş** | «Bağlantı» düğmesi yapıyı açan bir adres üretir (`#smiles=…`) |
 | Düzenle | Koordinatları RDKit'e yeniden ürettirir |
 | Geri / ileri | Ctrl+Z, Ctrl+Y |
 
 **Klavye — küçük harf araç, BÜYÜK harf element:**
 
-- `b` bağ · `a` atom · `s` seç · `e` sil · `t` halka · `g` grup · `w` kama · `h` kesikli
-- `C`, `N`, `O`, `S`, `W`… tek harfli element simgeleri (iki harfliler palet/tablodan)
+- `b` bağ · `c` zincir · `a` atom · `s` seç · `e` sil · `t` halka · `g` grup · `w` kama · `h` kesikli
+- `C`, `N`, `O`, `S`, `W`… element simgeleri; iki harfliler hızlıca yazılır (`C` `l` → Cl, `N` `a` → Na)
 - `Ctrl+A` tümünü seç · `Ctrl+C`/`Ctrl+V` kopyala-yapıştır · `Delete` seçimi sil · `Esc` bırak
 
 Bu ayrım zorunlu: `w` kama aracı ama `W` tungsten; aynı çakışma `b`/`B`, `s`/`S`,
@@ -98,6 +118,66 @@ Ana grup elementlerinin değerliği biliniyor, hidrojenleri otomatik hesaplanıy
 uydurmak yanıltıcı olurdu; organometalik yapılarda istenen davranış budur.
 
 Çizim **tarayıcıda otomatik saklanır** — sekmeyi kapatıp geri dönünce kaldığınız yerden devam edersiniz.
+
+### İsimden yapı
+
+Sağ paneldeki kutu üç tür girdiyi anlar ve şu sırayla dener:
+
+1. **Türkçe ad** (kafein, glikoz, asetilen…): galeri ve alıştırmalardaki ~40
+   molekül yerel listeden, **internetsiz** ve anında bulunur.
+2. **SMILES** (`CCO`, `c1ccccc1`…)
+3. **PubChem'de ad** (morphine, serotonin, acetic acid…). PubChem yalnız
+   İngilizce adları tanır: "morfin" bulunmaz, "morphine" bulunur. Bulunan
+   yapının PubChem sayfasına bağlantı verilir.
+
+Yalnız üçüncü adımda ağa çıkılır ve yalnız aranan ad NCBI'ye (ABD) gönderilir.
+Çevrimdışıyken yerel adlar ve SMILES çalışmaya devam eder.
+
+### Molekülü anlamak
+
+Bilgi paneli molekülde bulunan **fonksiyonel grupları** listeler (karboksilik asit,
+ester, amid, aldehit, keton, alkol, fenol, eter, amin, nitril, nitro, halojenür,
+tiyol, alken, alkin, aromatik halka). Bir gruba tıklayınca atomları tuvalde o
+grubun rengiyle vurgulanır.
+
+**Değerliği aşılmış** atomlar (beş bağlı karbon gibi) tuvalde kırmızı kesikli
+halkayla, panelde adı ve bağ sayısıyla gösterilir.
+
+### Alıştırma modu
+
+Başlıktaki **🎓 Alıştırma** düğmesi kolaydan zora 18 "şunu çizin" görevi açar.
+Çizip **Kontrol et**'e basın. Değerlendirme InChIKey ile yapılır ve yalnız
+doğru/yanlış değil, *neden* yanlış olduğunu da söyler:
+
+| Durum | Geri bildirim |
+|---|---|
+| Aynı molekül | Doğru |
+| İskelet aynı, stereokimya farklı | Kama/kesikli bağları kontrol edin |
+| İskelet aynı, yük farklı | Yükleri kontrol edin (asetik asit ↔ asetat) |
+| Formül aynı, bağlanma farklı | Bu bir izomer (etanol ↔ dimetil eter) |
+
+Belirli bir görevi bağlantıyla paylaşabilirsiniz: `maege.tr/#gorev=aspirin`.
+
+### Görünüm ve ayarlar
+
+Tüm görünüm ayarları **⚙ Ayarlar** penceresinde; sık kullanılanlar sol
+paneldeki «Görünüm» bölümünde de tek tıkla değişir. Ayarlar bu cihazda saklanır
+ve paylaşım bağlantısına girmez.
+
+| Ayar | Seçenekler |
+|---|---|
+| Tema | Otomatik (sistem) · Açık · Koyu |
+| Aromatik daire | Aromatik halkayı Kekulé yerine içte daireyle gösterir |
+| Karbon etiketleri | Gizli (iskelet) · Uçlar (yalnız CH₃ uçları) · Hepsi |
+| Karbonlarda hidrojen | Göster (CH₂) · Gizle (C) — OH, NH₂ gibi heteroatomlar her zaman hidrojenleriyle yazılır |
+
+Dışa aktarılan SVG ve PNG ekranda hangi tema açık olursa olsun **her zaman açık
+temadır** — belgeye beyaz zemin, koyu mürekkep gider.
+
+**Yeni bir ayar eklemek:** `src/ui/settings.ts` içindeki `SETTINGS` listesine bir
+kayıt eklenir. Tip, varsayılan, doğrulama, Ayarlar penceresindeki satır ve (`quick`
+işaretliyse) sol paneldeki düğme bu kayıttan kendiliğinden üretilir; geriye yalnız
+ayarı kullanan çizim kodu kalır.
 
 ### Stereokimya
 

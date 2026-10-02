@@ -1,0 +1,42 @@
+# Her push ve pull request'te: bagimliliklari temiz kur, testleri calistir,
+# uretim derlemesini al ve dist/ klasorunu indirilebilir yap.
+#
+# Sunucuya yuklenecek dosyalar boylece yerel makineye bagli kalmaz:
+# Actions sekmesinde calismanin sayfasindan "dist" arsivini indirip
+# icindekileri public_html'e kopyalamak yeterli.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test-ve-derleme:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # npm ci, package-lock.json'a birebir uyar ve postinstall ile RDKit'in
+      # WASM dosyalarini public/ altina kopyalar.
+      - run: npm ci
+
+      - run: npm test
+
+      # tsc -b dahil: tip hatalari da derlemeyi durdurur.
+      - run: npm run build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+          # upload-artifact v4.4'ten beri gizli dosyalari varsayilan olarak
+          # atlar. Bu olmadan .htaccess arsivden sessizce duser ve sunucuda
+          # sikistirma, MIME turleri, onbellek kurallari uygulanmaz.
+          include-hidden-files: true
+          retention-days: 30

@@ -1,4 +1,8 @@
+import { bondOrderSum, getAtom } from '../model/molecule';
+import { elementName } from '../model/elements';
 import { molecularFormula } from '../model/valence';
+import { findFunctionalGroup } from '../model/functionalGroups';
+import type { GroupHits } from '../rdkit/useMoleculeInfo';
 import type { MoleculeInfo } from '../rdkit/RdkitService';
 import type { RdkitState } from '../rdkit/useRdkit';
 import type { Molecule } from '../model/types';
@@ -13,6 +17,13 @@ type Props = {
   svgRef: React.RefObject<SVGSVGElement | null>;
   /** Dar ekran: sabit genislikli sutun yerine tam genislik alt panel */
   compact?: boolean;
+  /** Degerligi asilmis atomlar */
+  errorAtomIds?: string[];
+  /** RDKit'in buldugu fonksiyonel gruplar */
+  groups?: GroupHits[];
+  /** Tuvalde vurgulanan grup */
+  activeGroup?: string | null;
+  onToggleGroup?: (id: string) => void;
   /** Dar ekranda paneli kapatma dugmesi gosterilir */
   onClose?: () => void;
 };
@@ -26,6 +37,10 @@ export default function InfoPanel({
   svgRef,
   compact = false,
   onClose,
+  errorAtomIds = [],
+  groups = [],
+  activeGroup = null,
+  onToggleGroup,
 }: Props) {
   const empty = molecule.atoms.length === 0;
   const formula = molecularFormula(molecule);
@@ -37,7 +52,12 @@ export default function InfoPanel({
           ▾ Bilgi panelini kapat
         </button>
       )}
-      <ExportBar molecule={molecule} onImport={onImport} svgRef={svgRef} />
+      <ExportBar
+        molecule={molecule}
+        smiles={info?.valid ? info.smiles : null}
+        onImport={onImport}
+        svgRef={svgRef}
+      />
 
       <h2 style={styles.title}>Molekül bilgisi</h2>
 
@@ -55,11 +75,31 @@ export default function InfoPanel({
         <>
           <Field label="Kapalı formül" value={formula} mono />
 
-          {info && !info.valid && (
-            <p style={styles.error}>
-              Yapı kimyasal olarak geçerli değil (valans hatası olabilir). Çizime devam
-              edebilirsiniz.
-            </p>
+          {errorAtomIds.length > 0 ? (
+            // Hangi atomun sorunlu oldugunu soyluyoruz; ogrenci icin asil
+            // bilgi bu. Atomlar tuvalde de kirmizi halkayla isaretli.
+            <div style={styles.error}>
+              <strong>Değerlik aşıldı</strong> (tuvalde kırmızı halkalı):
+              <ul style={styles.errorList}>
+                {errorAtomIds.map((id) => {
+                  const atom = getAtom(molecule, id);
+                  if (!atom) return null;
+                  return (
+                    <li key={id}>
+                      {elementName(atom.element)} ({atom.element}) — {bondOrderSum(molecule, id)}{' '}
+                      bağ
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ) : (
+            info &&
+            !info.valid && (
+              <p style={styles.error}>
+                Yapı kimyasal olarak geçerli değil. Çizime devam edebilirsiniz.
+              </p>
+            )
           )}
 
           <Field
@@ -76,6 +116,42 @@ export default function InfoPanel({
             small
           />
           <Field label="InChIKey" value={info?.inchiKey ?? '—'} mono copyable small />
+
+          {groups.length > 0 && (
+            <>
+              <h3 style={styles.subtitle}>Fonksiyonel gruplar</h3>
+              <p style={styles.hint}>Tuvalde görmek için tıklayın.</p>
+              <div style={styles.chips}>
+                {groups.map((g) => {
+                  const def = findFunctionalGroup(g.id);
+                  if (!def) return null;
+                  const active = activeGroup === g.id;
+                  return (
+                    <button
+                      key={g.id}
+                      type="button"
+                      aria-pressed={active}
+                      onClick={() => onToggleGroup?.(g.id)}
+                      style={{
+                        ...styles.chip,
+                        borderColor: def.color,
+                        background: active ? def.color : 'var(--surface)',
+                        color: active ? '#fff' : 'var(--text)',
+                      }}
+                    >
+                      <span
+                        style={{ ...styles.dot, background: active ? '#fff' : def.color }}
+                      />
+                      {def.name}
+                      {g.matches.length > 1 && (
+                        <span style={{ opacity: 0.7 }}> ×{g.matches.length}</span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          )}
 
           {info?.descriptors && (
             <>
@@ -174,15 +250,31 @@ const styles: Record<string, React.CSSProperties> = {
     marginBottom: 8,
     padding: '8px 10px',
     fontSize: 12,
-    background: '#fff',
+    background: 'var(--surface)',
     border: '1px solid var(--border)',
     borderRadius: 6,
     cursor: 'pointer',
     color: 'var(--muted)',
   },
   title: { fontSize: 13, margin: '16px 0 10px' },
+  hint: { fontSize: 10, color: 'var(--muted)', margin: '0 0 6px' },
+  chips: { display: 'flex', flexWrap: 'wrap', gap: 4 },
+  chip: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 5,
+    padding: '3px 8px',
+    fontSize: 11,
+    // border kisayolu: React borderColor ile karisinca uyariyor; rengi ayrica veriyoruz
+    borderWidth: 1,
+    borderStyle: 'solid',
+    borderRadius: 12,
+    cursor: 'pointer',
+  },
+  dot: { width: 7, height: 7, borderRadius: '50%', flexShrink: 0 },
   subtitle: { fontSize: 11, textTransform: 'uppercase', color: 'var(--muted)', margin: '14px 0 6px' },
   muted: { fontSize: 12, color: 'var(--muted)' },
+  errorList: { margin: '4px 0 0', paddingLeft: 18 },
   error: { fontSize: 11, color: 'var(--danger)', lineHeight: 1.5 },
   fieldHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' },
   fieldLabel: { fontSize: 10, textTransform: 'uppercase', color: 'var(--muted)', letterSpacing: 0.4 },

@@ -20,10 +20,10 @@ type Props = {
 
 /** Elektron bloguna gore hucre arkaplani. */
 const BLOCK_BACKGROUND: Record<Block, string> = {
-  s: '#fdecec',
-  p: '#fdf6e3',
-  d: '#e9f1fd',
-  f: '#e9f6ec',
+  s: 'var(--block-s)',
+  p: 'var(--block-p)',
+  d: 'var(--block-d)',
+  f: 'var(--block-f)',
 };
 
 /**
@@ -38,10 +38,12 @@ export default function ElementPicker({ selected, onPick, onClose }: Props) {
   // bilesen kalkinca dinleyici de kalkar.
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.stopPropagation();
-        onClose();
-      }
+      // Pencere acikken hicbir tus arkadaki tuvale ulasmasin: yoksa ornegin
+      // 'c' araci degistirir, Ctrl+Z cizimi geri alirdi. Olay pencerede
+      // (yakalama asamasinda) durdurulur; dugmelerin Enter/Bosluk ve Tab
+      // gibi varsayilan davranislari etkilenmez.
+      e.stopPropagation();
+      if (e.key === 'Escape') onClose();
     };
     window.addEventListener('keydown', onKeyDown, true);
     return () => window.removeEventListener('keydown', onKeyDown, true);
@@ -173,7 +175,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   close: {
     border: '1px solid var(--border)',
-    background: '#fff',
+    background: 'var(--surface)',
     borderRadius: 6,
     cursor: 'pointer',
     fontSize: 12,

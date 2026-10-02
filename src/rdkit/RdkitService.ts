@@ -1,4 +1,5 @@
 import type { JSMol, RDKitModule } from '@rdkit/rdkit';
+import { FUNCTIONAL_GROUPS } from '../model/functionalGroups';
 
 /**
  * RDKit.js (WASM) koprusu.
@@ -89,6 +90,14 @@ export type MoleculeInfo = {
   inchiKey: string | null;
   descriptors: Partial<Descriptors> | null;
   stereo: StereoTags | null;
+  /** Bulunan fonksiyonel gruplar; atom indeksleri molblock sirasinda */
+  groups: FoundGroup[] | null;
+};
+
+export type FoundGroup = {
+  id: string;
+  /** Her eslesme bir atom indeksi listesi */
+  matches: number[][];
 };
 
 /** Bir molblock icin tum tanimlayici ve ozellikleri tek geciste hesaplar. */
@@ -102,6 +111,7 @@ export function analyze(rdkit: RDKitModule, molblock: string): MoleculeInfo {
       inchiKey: inchi ? safe(() => rdkit.get_inchikey_for_inchi(inchi)) : null,
       descriptors: safe(() => JSON.parse(mol.get_descriptors()) as Descriptors),
       stereo: safe(() => parseStereoTags(mol.get_stereo_tags())),
+      groups: safe(() => findFunctionalGroups(rdkit, mol)),
     } satisfies MoleculeInfo;
   });
 
@@ -113,6 +123,7 @@ export function analyze(rdkit: RDKitModule, molblock: string): MoleculeInfo {
       inchiKey: null,
       descriptors: null,
       stereo: null,
+      groups: null,
     }
   );
 }
@@ -172,6 +183,77 @@ export function cleanupCoords(rdkit: RDKitModule, molblock: string): string | nu
     },
     true,
   );
+}
+
+/**
+ * Sorgu molekulleri (SMARTS) onbellegi.
+ *
+ * Desenler sabit, bu yuzden her analizde ~20 WASM nesnesi yaratip silmek
+ * yerine her RDKit ornegi icin bir kez olusturup tutuyoruz. Sayi sinirli
+ * (desen sayisi kadar) oldugu icin bu bir sizinti degil. WeakMap: testler
+ * ayri bir RDKit ornegi kullanirsa onbellekler karismasin.
+ */
+const queryCache = new WeakMap<RDKitModule, Map<string, JSMol | null>>();
+
+function queryMol(rdkit: RDKitModule, smarts: string): JSMol | null {
+  let cache = queryCache.get(rdkit);
+  if (!cache) {
+    cache = new Map();
+    queryCache.set(rdkit, cache);
+  }
+  if (!cache.has(smarts)) cache.set(smarts, rdkit.get_qmol(smarts));
+  return cache.get(smarts) ?? null;
+}
+
+/** Molekuldeki fonksiyonel gruplari bulur; hic eslesmeyen gruplar listelenmez. */
+export function findFunctionalGroups(rdkit: RDKitModule, mol: JSMol): FoundGroup[] {
+  const found: FoundGroup[] = [];
+
+  for (const group of FUNCTIONAL_GROUPS) {
+    const seen = new Set<string>();
+    const matches: number[][] = [];
+
+    for (const smarts of group.smarts) {
+      const query = queryMol(rdkit, smarts);
+      if (!query) continue;
+      for (const atoms of parseMatches(mol.get_substruct_matches(query))) {
+        // Ayni atom kumesi farkli desenden ya da siradan tekrar gelebilir.
+        const key = [...atoms].sort((a, b) => a - b).join(',');
+        if (seen.has(key)) continue;
+        seen.add(key);
+        matches.push(atoms);
+      }
+    }
+    if (matches.length > 0) found.push({ id: group.id, matches });
+  }
+  return found;
+}
+
+/**
+ * get_substruct_matches ciktisini cozer.
+ * Dikkat: eslesme yokken bos dizi degil "{}" doner.
+ */
+function parseMatches(raw: string): number[][] {
+  const parsed = JSON.parse(raw) as { atoms: number[] }[] | Record<string, never>;
+  return Array.isArray(parsed) ? parsed.map((m) => m.atoms) : [];
+}
+
+/**
+ * Bir yapinin InChI ve InChIKey'i (SMILES ya da molblock). Alistirma modunda
+ * hedef ile cizimi karsilastirmak icin; gecersiz yapida null.
+ */
+export function identify(rdkit: RDKitModule, input: string): { inchi: string; inchiKey: string } | null {
+  return withMol(rdkit, input, (mol) => {
+    const inchi = mol.get_inchi();
+    if (!inchi) return null;
+    const inchiKey = rdkit.get_inchikey_for_inchi(inchi);
+    return inchiKey ? { inchi, inchiKey } : null;
+  });
+}
+
+/** SMILES icin gruplari bulur (testler ve tek seferlik kullanim icin). */
+export function functionalGroupsOfSmiles(rdkit: RDKitModule, smiles: string): FoundGroup[] | null {
+  return withMol(rdkit, smiles, (mol) => findFunctionalGroups(rdkit, mol));
 }
 
 function safe<T>(fn: () => T): T | null {

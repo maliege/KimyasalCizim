@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from 'react';
 import Canvas from './editor/Canvas';
 import { editorReducer, initialEditorState } from './editor/editorReducer';
 import type { EditorState } from './editor/editorReducer';
@@ -6,10 +6,30 @@ import { loadMolecule, saveMolecule } from './editor/persistence';
 import { DEFAULT_VIEWPORT, fitTo, zoomAt } from './editor/viewport';
 import type { Viewport } from './editor/viewport';
 import Toolbar from './panels/Toolbar';
+import ExercisePanel from './panels/ExercisePanel';
+import {
+  EXERCISES,
+  evaluate,
+  findExercise,
+  formulaFromInchi,
+  nextExercise,
+} from './model/exercises';
+import type { Verdict } from './model/exercises';
+import { toMolfile } from './model/molfile';
 import InfoPanel from './panels/InfoPanel';
 import { useMoleculeInfo } from './rdkit/useMoleculeInfo';
-import { resolveKey } from './editor/keymap';
-import { molecularFormula } from './model/valence';
+import { COMBINE_WINDOW_MS, resolveKey } from './editor/keymap';
+import { isElement } from './model/elements';
+import { DEFAULT_SETTINGS, applySetting, loadSettings, saveSettings } from './ui/settings';
+import { LabelOptionsContext } from './render/labelOptions';
+import type { LabelOptions } from './render/style';
+import SettingsDialog from './panels/SettingsDialog';
+import { findFunctionalGroup } from './model/functionalGroups';
+import { buildTaskUrl, parseShareHash } from './editor/shareLink';
+import { fromMolfile } from './model/molfile';
+import { identify, molblockFromSmiles } from './rdkit/RdkitService';
+import { useRdkit } from './rdkit/useRdkit';
+import { molecularFormula, valenceErrors } from './model/valence';
 import { COMPACT_QUERY, useMediaQuery } from './ui/useMediaQuery';
 import type { Molecule } from './model/types';
 
@@ -26,19 +46,70 @@ export default function App() {
   const [state, dispatch] = useReducer(editorReducer, initialEditorState, restoreState);
   const [viewport, setViewport] = useState<Viewport>(DEFAULT_VIEWPORT);
   const svgRef = useRef<SVGSVGElement>(null);
+  /** Iki harfli element girisi icin son basilan tus. Ref: degisince render gerekmez. */
+  const lastKey = useRef<{ key: string; time: number } | null>(null);
   const canvasBoxRef = useRef<HTMLDivElement>(null);
   // Sifirla basliyoruz ki "henuz olculmedi" durumu ayirt edilebilsin;
   // 800x600 gibi bir taban deger, sigdirma adimini yanlis olcuyle calistirir.
   const [size, setSize] = useState({ width: 0, height: 0 });
 
   // Tek bir RDKit hesabi hem paneli hem tuvaldeki stereo etiketlerini besler.
-  const { info, stereo, pending, status } = useMoleculeInfo(state.molecule);
+  const { info, stereo, groups, pending, status } = useMoleculeInfo(state.molecule);
+
+  // Gorunum ayarlari (bkz. ui/settings.ts). Tema, kok elemandaki data-theme
+  // niteligiyle uygulanir; "otomatik"te nitelik kaldirilir ve sistem tercihi
+  // (prefers-color-scheme) gecerli olur.
+  const [settings, setSettings] = useState(loadSettings);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  useEffect(() => {
+    saveSettings(settings);
+    const root = document.documentElement;
+    if (settings.theme === 'auto') delete root.dataset.theme;
+    else root.dataset.theme = settings.theme;
+  }, [settings]);
+  /** Pencere ve hizli dugmeler duz anahtar-deger gonderir; dogrulama semada. */
+  const changeSetting = useCallback(
+    (key: string, value: unknown) => setSettings((s) => applySetting(s, key, value)),
+    [],
+  );
+
+  // Etiket ayarlari context ile cizime gider. useMemo: nesne her render'da
+  // yeniden olusursa context'i okuyan her bilesen bosuna yeniden cizilirdi.
+  const labelOptions = useMemo<LabelOptions>(
+    () => ({ carbonLabels: settings.carbonLabels, carbonHydrogens: settings.carbonHydrogens }),
+    [settings.carbonLabels, settings.carbonHydrogens],
+  );
+
+  // Aromatik halkalari RDKit buluyor (fonksiyonel grup taramasinin parcasi);
+  // daire gosterimi acikken onlari cizime veriyoruz.
+  const aromaticRings = useMemo(
+    () =>
+      settings.aromaticCircles
+        ? (groups.find((g) => g.id === 'aromatic-ring')?.matches ?? null)
+        : null,
+    [settings.aromaticCircles, groups],
+  );
+
+  // Panelde tiklanan fonksiyonel grup tuvalde renklendirilir. Molekul
+  // degisip grup artik yoksa vurgu kendiliginden kaybolur.
+  const [activeGroup, setActiveGroup] = useState<string | null>(null);
+  const groupHighlight = useMemo(() => {
+    const hit = activeGroup ? groups.find((g) => g.id === activeGroup) : undefined;
+    const def = activeGroup ? findFunctionalGroup(activeGroup) : undefined;
+    if (!hit || !def) return null;
+    return { color: def.color, atomIds: new Set(hit.matches.flat()) };
+  }, [activeGroup, groups]);
 
   // Dar ekranda uc sutun sigmaz: tuval tam genislik alir, bilgi paneli
   // istege bagli acilir.
   const compact = useMediaQuery(COMPACT_QUERY);
   const [infoOpen, setInfoOpen] = useState(false);
   const formula = molecularFormula(state.molecule);
+
+  // Degerlik denetimi yerel ve ucuz: RDKit'i beklemeden her degisiklikte.
+  // useMemo: molekul degismedikce yeniden hesaplanmaz.
+  const errorAtoms = useMemo(() => valenceErrors(state.molecule), [state.molecule]);
+  const errorAtomSet = useMemo(() => new Set(errorAtoms), [errorAtoms]);
 
   // Tuval, kalan alani doldursun.
   useLayoutEffect(() => {
@@ -137,9 +208,22 @@ export default function App() {
         return;
       }
 
-      const action = resolveKey(e.key);
+      // Iki harfli simgeler icin son tusu kisa bir sure hatirliyoruz.
+      const now = performance.now();
+      const last = lastKey.current;
+      const previous = last && now - last.time < COMBINE_WINDOW_MS ? last.key : undefined;
+      lastKey.current = { key: e.key, time: now };
+
+      const action = resolveKey(e.key, previous);
       if (action.kind === 'tool') dispatch({ type: 'setTool', tool: action.tool });
-      else if (action.kind === 'element') dispatch({ type: 'setElement', element: action.element });
+      else if (action.kind === 'element') {
+        // Ilk harf tek basina bir element sectiyse (C → Cl) onu son kullanilanlardan
+        // cikar; secmediyse (Z → Zn) cikaracak bir sey yok, alakasiz bir kayit silinmesin.
+        const replacePrevious = action.combined && previous !== undefined && isElement(previous);
+        dispatch({ type: 'setElement', element: action.element, replacePrevious });
+        // Birlesen cift tuketildi; ucuncu bir harf onunla tekrar birlesmesin.
+        if (action.combined) lastKey.current = null;
+      }
     }
 
     window.addEventListener('keydown', onKeyDown);
@@ -153,6 +237,105 @@ export default function App() {
     },
     [size],
   );
+
+  // Paylasim baglantisi: adres #smiles=... tasiyorsa o yapiyi ac.
+  //
+  // Yapi normal bir duzenleme adimi olarak yuklenir; kullanicinin kendi
+  // cizimi kaybolmaz, Ctrl+Z ile geri gelir. Adres parcasini hemen
+  // temizliyoruz: yoksa sayfa her yenilendiginde kullanicinin son hali
+  // yerine yine bagladaki yapi acilirdi.
+  const { status: rdkitStatus, rdkit } = useRdkit();
+  const [notice, setNotice] = useState<string | null>(null);
+
+  // --- Alistirma modu ---
+  const [exercise, setExercise] = useState<{
+    id: string;
+    verdict: Verdict | null;
+    hint: boolean;
+  } | null>(null);
+  // Oturum boyunca cozulen gorevler; sayfa yenilenince sifirlanir.
+  const [solved, setSolved] = useState<Set<string>>(() => new Set());
+  const [taskShare, setTaskShare] = useState<'kopyalandi' | null>(null);
+
+  /** Gorevi baslatir: tuval temizlenir (geri alinabilir), gorunum sifirlanir. */
+  const startExercise = useCallback((id: string) => {
+    if (!findExercise(id)) return;
+    setExercise({ id, verdict: null, hint: false });
+    dispatch({ type: 'clear' });
+    setViewport(DEFAULT_VIEWPORT);
+  }, []);
+
+  // Cizim degisince eski sonuc gecersizlesir; ogrenci yeniden kontrol eder.
+  useEffect(() => {
+    setExercise((ex) => (ex?.verdict ? { ...ex, verdict: null } : ex));
+  }, [state.molecule]);
+
+  const activeExercise = exercise ? findExercise(exercise.id) : undefined;
+
+  // Hedefin kimligi gorev basina bir kez hesaplanir.
+  const target = useMemo(
+    () =>
+      activeExercise && rdkitStatus === 'ready' ? identify(rdkit, activeExercise.smiles) : null,
+    [activeExercise, rdkitStatus, rdkit],
+  );
+
+  const handleCheck = () => {
+    if (!exercise || !target || rdkitStatus !== 'ready') return;
+    const empty = state.molecule.atoms.length === 0;
+    const drawn = empty ? null : identify(rdkit, toMolfile(state.molecule));
+    const verdict = evaluate(drawn, target, empty);
+    setExercise({ ...exercise, verdict });
+    if (verdict.kind === 'dogru') setSolved((prev) => new Set(prev).add(exercise.id));
+  };
+
+  const handleTaskShare = async () => {
+    if (!exercise) return;
+    try {
+      await navigator.clipboard.writeText(buildTaskUrl(window.location.href, exercise.id));
+      setTaskShare('kopyalandi');
+      setTimeout(() => setTaskShare(null), 2000);
+    } catch {
+      setNotice('Bağlantı kopyalanamadı.');
+    }
+  };
+
+  /** Ilk cozulmemis gorevden basla; hepsi cozulduyse bastan. */
+  const openExercises = () =>
+    startExercise((EXERCISES.find((e) => !solved.has(e.id)) ?? EXERCISES[0]).id);
+  useEffect(() => {
+    if (rdkitStatus !== 'ready' || size.width <= 1) return;
+
+    const loadFromHash = () => {
+      const { smiles, task } = parseShareHash(window.location.hash);
+      if (!smiles && !task) return;
+      history.replaceState(null, '', window.location.pathname + window.location.search);
+
+      if (task) {
+        if (findExercise(task)) {
+          startExercise(task);
+          setNotice(null);
+        } else {
+          setNotice(`Bağlantıdaki görev bulunamadı: ${task}`);
+        }
+        return;
+      }
+      if (!smiles) return;
+
+      const molblock = molblockFromSmiles(rdkit, smiles);
+      if (!molblock) {
+        setNotice(`Bağlantıdaki yapı okunamadı: ${smiles}`);
+        return;
+      }
+      handleImport(fromMolfile(molblock));
+      setNotice(null);
+    };
+
+    loadFromHash();
+    // Uygulama acikken yeni bir baglanti yapistirilirsa sayfa yenilenmez;
+    // yalnizca adres parcasi degisir.
+    window.addEventListener('hashchange', loadFromHash);
+    return () => window.removeEventListener('hashchange', loadFromHash);
+  }, [rdkitStatus, rdkit, handleImport, size.width, startExercise]);
 
   return (
     <div style={styles.app}>
@@ -176,12 +359,77 @@ export default function App() {
             Ctrl+sürükleme kaydırır
           </span>
         )}
+        <button
+          type="button"
+          style={{ ...styles.infoToggle, marginLeft: 'auto', ...(exercise ? styles.exerciseOn : {}) }}
+          aria-pressed={!!exercise}
+          onClick={() => (exercise ? setExercise(null) : openExercises())}
+          title="Şunu çizin görevleriyle pratik yapın"
+        >
+          🎓 {compact ? '' : 'Alıştırma'}
+        </button>
+        <button
+          type="button"
+          style={styles.infoToggle}
+          onClick={() => setSettingsOpen(true)}
+          title="Ayarlar"
+          aria-label="Ayarlar"
+        >
+          ⚙
+        </button>
       </header>
 
+      {settingsOpen && (
+        <SettingsDialog
+          settings={settings}
+          onChange={changeSetting}
+          onReset={() => setSettings(DEFAULT_SETTINGS)}
+          onClose={() => setSettingsOpen(false)}
+        />
+      )}
+
       <div style={compact ? styles.bodyCompact : styles.body}>
-        {/* Dar ekranda tuval once gelir, arac seridi altina duser (basparmak
-            menzili); genis ekranda klasik uc sutun. */}
+        {/* DOM sirasi genis ekranin sirasi: arac sutunu solda, tuval ortada,
+            bilgi sagda. Dar ekranda tuvale `order: -1` verilerek one alinir,
+            boylece arac seridi basparmak menziline, altina duser. */}
+        <Toolbar
+          state={state}
+          dispatch={dispatch}
+          onZoom={handleZoom}
+          onFit={handleFit}
+          compact={compact}
+          settings={settings}
+          onSettingChange={changeSetting}
+          onOpenSettings={() => setSettingsOpen(true)}
+        />
+
+        {/* Gorev seridi tuvalin UZERINE binmesin diye ayni sutunda, ustunde.
+            Olcum main'e bagli oldugu icin tuval kalan alani dogru alir. */}
+        <div style={compact ? { ...styles.centerColumn, order: -1 } : styles.centerColumn}>
+        {exercise && activeExercise && (
+          <ExercisePanel
+            exercise={activeExercise}
+            verdict={exercise.verdict}
+            hintVisible={exercise.hint}
+            targetFormula={target ? formulaFromInchi(target.inchi) : null}
+            solved={solved}
+            compact={compact}
+            onPick={startExercise}
+            onCheck={handleCheck}
+            onHint={() => setExercise({ ...exercise, hint: true })}
+            onNext={() => startExercise(nextExercise(exercise.id).id)}
+            onShare={() => void handleTaskShare()}
+            onExit={() => setExercise(null)}
+            shareState={taskShare}
+          />
+        )}
+        <LabelOptionsContext.Provider value={labelOptions}>
         <main ref={canvasBoxRef} style={styles.canvasBox}>
+          {notice && (
+            <button type="button" style={styles.notice} onClick={() => setNotice(null)}>
+              {notice} <span style={{ opacity: 0.6 }}>✕</span>
+            </button>
+          )}
           <Canvas
             state={state}
             dispatch={dispatch}
@@ -190,17 +438,14 @@ export default function App() {
             viewport={viewport}
             onViewportChange={setViewport}
             stereo={stereo}
+            errorAtomIds={errorAtomSet}
+            groupHighlight={groupHighlight}
+            aromaticRings={aromaticRings}
             svgRef={svgRef}
           />
         </main>
-
-        <Toolbar
-          state={state}
-          dispatch={dispatch}
-          onZoom={handleZoom}
-          onFit={handleFit}
-          compact={compact}
-        />
+        </LabelOptionsContext.Provider>
+        </div>
 
         {(!compact || infoOpen) && (
           <InfoPanel
@@ -211,6 +456,10 @@ export default function App() {
             onImport={handleImport}
             svgRef={svgRef}
             compact={compact}
+            errorAtomIds={errorAtoms}
+            groups={groups}
+            activeGroup={groupHighlight ? activeGroup : null}
+            onToggleGroup={(id) => setActiveGroup((cur) => (cur === id ? null : id))}
             onClose={compact ? () => setInfoOpen(false) : undefined}
           />
         )}
@@ -245,7 +494,7 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 12,
     padding: '6px 12px',
     minHeight: 34,
-    background: '#fff',
+    background: 'var(--surface)',
     border: '1px solid var(--border)',
     borderRadius: 6,
     cursor: 'pointer',
@@ -253,6 +502,35 @@ const styles: Record<string, React.CSSProperties> = {
     flexShrink: 0,
   },
   body: { display: 'flex', flex: 1, minHeight: 0 },
+  centerColumn: { display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0, minHeight: 0 },
+  exerciseOn: {
+    background: 'var(--accent)',
+    border: '1px solid var(--accent)',
+    color: '#fff',
+  },
   bodyCompact: { display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 },
-  canvasBox: { flex: 1, minWidth: 0, minHeight: 0, overflow: 'hidden', background: '#fff' },
+  canvasBox: {
+    flex: 1,
+    minWidth: 0,
+    minHeight: 0,
+    overflow: 'hidden',
+    background: 'var(--surface)',
+    position: 'relative',
+  },
+  notice: {
+    position: 'absolute',
+    top: 10,
+    left: '50%',
+    transform: 'translateX(-50%)',
+    maxWidth: 'calc(100% - 24px)',
+    padding: '8px 12px',
+    fontSize: 12,
+    color: 'var(--danger)',
+    background: 'var(--surface)',
+    border: '1px solid var(--danger)',
+    borderRadius: 6,
+    cursor: 'pointer',
+    zIndex: 5,
+    boxShadow: '0 4px 14px rgba(0,0,0,0.08)',
+  },
 };

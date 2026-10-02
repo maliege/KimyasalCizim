@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { addAtom, addBond, emptyMolecule, getAtom } from './molecule';
 import { buildRing } from './templates';
-import { implicitHydrogens, molecularFormula } from './valence';
+import { implicitHydrogens, molecularFormula, valenceErrors } from './valence';
 import type { Molecule } from './types';
 
 /** Tek atomlu molekul yardimcisi */
@@ -73,6 +73,65 @@ describe('implicitHydrogens', () => {
   it('bilinmeyen elementte H göstermez', () => {
     const fe = lone('Fe');
     expect(hydrogensOf(fe.mol, fe.id)).toBe(0);
+  });
+});
+
+describe('exceedsValence / valenceErrors', () => {
+  /** Merkez atoma n adet tekli bagla karbon baglar. */
+  function star(element: string, n: number, charge = 0) {
+    let m = emptyMolecule();
+    const c = addAtom(m, { element, x: 0, y: 0, charge });
+    m = c.molecule;
+    for (let i = 0; i < n; i++) {
+      const leaf = addAtom(m, { element: 'C', x: 40 * Math.cos(i), y: 40 * Math.sin(i) });
+      m = addBond(leaf.molecule, c.atomId, leaf.atomId, 1);
+    }
+    return { mol: m, id: c.atomId };
+  }
+
+  it('beş bağlı karbonu işaretler', () => {
+    const { mol, id } = star('C', 5);
+    expect(valenceErrors(mol)).toEqual([id]);
+  });
+
+  it('dört bağlı karbonu işaretlemez', () => {
+    expect(valenceErrors(star('C', 4).mol)).toEqual([]);
+  });
+
+  it('amonyum azotunu (N⁺, 4 bağ) işaretlemez', () => {
+    expect(valenceErrors(star('N', 4, 1).mol)).toEqual([]);
+  });
+
+  it('yüksüz dört bağlı azotu işaretler', () => {
+    const { mol, id } = star('N', 4);
+    expect(valenceErrors(mol)).toEqual([id]);
+  });
+
+  it('çok değerlikli elementlerde en yüksek değerliği kullanır', () => {
+    // Kükürt 6 bağa kadar geçerli (sülfonik asit), 7'de hata
+    expect(valenceErrors(star('S', 6).mol)).toEqual([]);
+    expect(valenceErrors(star('S', 7).mol)).toHaveLength(1);
+  });
+
+  it('ikili bağları derecesiyle sayar', () => {
+    // C=C=C=C... değil: tek karbona üç ikili bağ = 6 > 4
+    let m = emptyMolecule();
+    const c = addAtom(m, { element: 'C', x: 0, y: 0 });
+    m = c.molecule;
+    for (let i = 0; i < 3; i++) {
+      const o = addAtom(m, { element: 'O', x: 40 * i, y: 40 });
+      m = addBond(o.molecule, c.atomId, o.atomId, 2);
+    }
+    expect(valenceErrors(m)).toEqual([c.atomId]);
+  });
+
+  it('değerliği bilinmeyen metalleri hiç işaretlemez', () => {
+    expect(valenceErrors(star('Fe', 6).mol)).toEqual([]);
+  });
+
+  it('benzende hata bulmaz', () => {
+    const benzene = buildRing(emptyMolecule(), { x: 0, y: 0 }, 6, true).molecule;
+    expect(valenceErrors(benzene)).toEqual([]);
   });
 });
 

@@ -1,12 +1,17 @@
-import { createContext, useContext, useState } from 'react';
+import { createContext, useContext, useEffect, useState } from 'react';
+import { TOOLS, sectionForTool, toggleSection } from './toolbarSections';
+import type { AccordionId } from './toolbarSections';
 import { TEMPLATES } from '../model/templates';
 import { GROUPS } from '../model/groups';
 import { elementName } from '../model/elements';
 import { canRedo, canUndo } from '../editor/editorReducer';
-import type { EditorAction, EditorState, ToolId } from '../editor/editorReducer';
+import type { EditorAction, EditorState } from '../editor/editorReducer';
 import type { BondOrder } from '../model/types';
 import { elementColor } from '../render/style';
 import ElementPicker from './ElementPicker';
+import type { TransformOp } from '../model/transform';
+import { SETTINGS, nextChoice } from '../ui/settings';
+import type { SettingDef, Settings } from '../ui/settings';
 
 type Props = {
   state: EditorState;
@@ -15,16 +20,12 @@ type Props = {
   onFit: () => void;
   /** Dar ekran: dikey panel yerine yatay kaydirilabilir serit */
   compact?: boolean;
+  settings: Settings;
+  /** Deger semaya gore App'te dogrulanir (applySetting) */
+  onSettingChange: (key: string, value: unknown) => void;
+  onOpenSettings: () => void;
 };
 
-const TOOLS: { id: ToolId; label: string; hint: string }[] = [
-  { id: 'select', label: '⭠⭢', hint: 'Seç ve taşı (S) — boş alanda sürükleyerek kutu seçimi' },
-  { id: 'erase', label: '⌫', hint: 'Sil (E)' },
-  { id: 'chargePlus', label: '＋', hint: 'Yükü artır' },
-  { id: 'chargeMinus', label: '－', hint: 'Yükü azalt' },
-  { id: 'wedge', label: '◤', hint: 'Kama bağ, öne doğru (W)' },
-  { id: 'hash', label: '⦀', hint: 'Kesikli bağ, arkaya (H)' },
-];
 
 const BOND_ORDERS: { order: BondOrder; label: string; hint: string }[] = [
   { order: 1, label: '—', hint: 'Tekli bağ' },
@@ -33,6 +34,14 @@ const BOND_ORDERS: { order: BondOrder; label: string; hint: string }[] = [
 ];
 
 const ELEMENTS = ['C', 'N', 'O', 'S', 'P', 'F', 'Cl', 'Br', 'I', 'H'];
+
+/** 30° adimlar cizimi aci izgarasinda tutar (bag araci da 30°'ye yakalar). */
+const TRANSFORMS: { label: string; hint: string; op: TransformOp }[] = [
+  { label: '⟲', hint: '30° sola döndür', op: { kind: 'rotate', degrees: -30 } },
+  { label: '⟳', hint: '30° sağa döndür', op: { kind: 'rotate', degrees: 30 } },
+  { label: '⇆', hint: 'Yatay aynala', op: { kind: 'flip', axis: 'horizontal' } },
+  { label: '⇅', hint: 'Dikey aynala', op: { kind: 'flip', axis: 'vertical' } },
+];
 
 /**
  * Dokunma hedefi buyutulsun mu?
@@ -43,13 +52,61 @@ const ELEMENTS = ['C', 'N', 'O', 'S', 'P', 'F', 'Cl', 'Br', 'I', 'H'];
  */
 const TouchTargets = createContext(false);
 
-export default function Toolbar({ state, dispatch, onZoom, onFit, compact = false }: Props) {
+export default function Toolbar({
+  state,
+  dispatch,
+  onZoom,
+  onFit,
+  compact = false,
+  settings,
+  onSettingChange,
+  onOpenSettings,
+}: Props) {
   const [pickerOpen, setPickerOpen] = useState(false);
 
   // Hizli palette zaten bulunanlari son kullanilanlarda tekrarlamaya gerek yok.
   const recent = state.recentElements.filter((e) => !ELEMENTS.includes(e));
 
   const Section = compact ? CompactSection : WideSection;
+
+  // Akordiyon: Araclar / Gruplar / Halkalar'dan yalniz biri acik.
+  const [openSection, setOpenSection] = useState<AccordionId | null>(
+    () => sectionForTool(state.tool) ?? 'araclar',
+  );
+  // Arac degisince (kisayolla da olsa) o aracin bolumu acilsin; secili arac
+  // kapali bir bolumde gozden kaybolmasin. Yalniz arac degisince calisir,
+  // yani kullanicinin elle kapattigi bolume karismaz.
+  useEffect(() => {
+    const section = sectionForTool(state.tool);
+    if (section) setOpenSection(section);
+  }, [state.tool]);
+
+  /**
+   * Genis ekranda akordiyon, dar ekranda (yatay serit) acik bolum.
+   * Bilerek bilesen degil fonksiyon: render icinde tanimlanan bir bilesen her
+   * render'da yeniden olusur ve tiklanan dugmenin odagini kaybettirirdi.
+   */
+  const fold = (id: AccordionId, title: string, summary: string | undefined, body: React.ReactNode) =>
+    compact ? (
+      <CompactSection title={title}>{body}</CompactSection>
+    ) : (
+      <AccordionSection
+        id={id}
+        title={title}
+        summary={summary}
+        open={openSection === id}
+        onToggle={() => setOpenSection((cur) => toggleSection(cur, id))}
+      >
+        {body}
+      </AccordionSection>
+    );
+
+  // Kapali bolumde secili olan sey baslikta gorunsun: "Halkalar · Benzen"
+  const activeTool = TOOLS.find((t) => t.id === state.tool)?.name;
+  const activeGroup =
+    state.tool === 'group' ? GROUPS.find((g) => g.id === state.groupId)?.formula : undefined;
+  const activeTemplate =
+    state.tool === 'template' ? TEMPLATES.find((t) => t.id === state.templateId)?.label : undefined;
 
   return (
     <TouchTargets.Provider value={compact}>
@@ -115,7 +172,7 @@ export default function Toolbar({ state, dispatch, onZoom, onFit, compact = fals
         />
       )}
 
-      <Section title="Araçlar">
+      {fold('araclar', 'Araçlar', activeTool, (
         <div style={styles.grid}>
           {TOOLS.map(({ id, label, hint }) => (
             <Button
@@ -128,9 +185,9 @@ export default function Toolbar({ state, dispatch, onZoom, onFit, compact = fals
             </Button>
           ))}
         </div>
-      </Section>
+      ))}
 
-      <Section title="Gruplar">
+      {fold('gruplar', 'Gruplar', activeGroup, (
         <div style={styles.grid}>
           {GROUPS.map((group) => (
             <Button
@@ -144,9 +201,9 @@ export default function Toolbar({ state, dispatch, onZoom, onFit, compact = fals
             </Button>
           ))}
         </div>
-      </Section>
+      ))}
 
-      <Section title="Halkalar">
+      {fold('halkalar', 'Halkalar', activeTemplate, (
         <div style={compact ? styles.grid : styles.templateList}>
           {TEMPLATES.map((template) => (
             <Button
@@ -157,6 +214,21 @@ export default function Toolbar({ state, dispatch, onZoom, onFit, compact = fals
               wide={!compact}
             >
               {template.label}
+            </Button>
+          ))}
+        </div>
+      ))}
+
+      <Section title="Dönüştür">
+        <div style={styles.grid}>
+          {TRANSFORMS.map(({ label, hint, op }) => (
+            <Button
+              key={hint}
+              title={`${hint} — seçimi, seçim yoksa tüm yapıyı`}
+              disabled={state.molecule.atoms.length === 0}
+              onClick={() => dispatch({ type: 'transform', op })}
+            >
+              {label}
             </Button>
           ))}
         </div>
@@ -172,6 +244,48 @@ export default function Toolbar({ state, dispatch, onZoom, onFit, compact = fals
           </Button>
           <Button title="Tuvale sığdır" onClick={onFit} grow>
             <span style={{ fontSize: 11 }}>Sığdır</span>
+          </Button>
+          {/* Semada "quick" isaretli ayarlar: acik/kapali dugme ya da
+              tiklandikca secenekler arasinda donen dugme. */}
+          {(SETTINGS as readonly SettingDef[])
+            .filter((def) => def.quick)
+            .map((def) => {
+              const value = (settings as Record<string, unknown>)[def.key];
+              const name = def.short ?? def.label;
+              if (def.type === 'boolean') {
+                return (
+                  <Button
+                    key={def.key}
+                    title={def.help}
+                    active={value === true}
+                    onClick={() => onSettingChange(def.key, !value)}
+                    wide={!compact}
+                  >
+                    <span style={{ fontSize: 11 }}>{name}</span>
+                  </Button>
+                );
+              }
+              if (def.type === 'choice') {
+                const option = def.options.find((o) => o.value === value);
+                return (
+                  <Button
+                    key={def.key}
+                    title={`${def.help} (tıkladıkça değişir)`}
+                    onClick={() =>
+                      onSettingChange(def.key, nextChoice(def, String(value)))
+                    }
+                    wide={!compact}
+                  >
+                    <span style={{ fontSize: 11 }}>
+                      {name}: {option?.label}
+                    </span>
+                  </Button>
+                );
+              }
+              return null;
+            })}
+          <Button title="Tüm görünüm ayarları" onClick={onOpenSettings} wide={!compact}>
+            <span style={{ fontSize: 11 }}>⚙ Tüm ayarlar…</span>
           </Button>
         </div>
       </Section>
@@ -210,6 +324,41 @@ function WideSection({ title, children }: SectionProps) {
     <section style={{ marginBottom: 16 }}>
       <h2 style={styles.sectionTitle}>{title}</h2>
       {children}
+    </section>
+  );
+}
+
+/** Genis ekran akordiyon bolumu: basliga tiklayinca acilir/kapanir. */
+function AccordionSection({
+  id,
+  title,
+  summary,
+  open,
+  onToggle,
+  children,
+}: SectionProps & {
+  id: AccordionId;
+  summary?: string;
+  open: boolean;
+  onToggle: () => void;
+}) {
+  const panelId = `akordiyon-${id}`;
+  return (
+    <section style={{ marginBottom: open ? 16 : 6 }}>
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls={panelId}
+        onClick={onToggle}
+        style={styles.accordionHeader}
+      >
+        <span style={styles.chevron} aria-hidden="true">
+          {open ? '▾' : '▸'}
+        </span>
+        {title}
+        {!open && summary && <span style={styles.accordionSummary}>· {summary}</span>}
+      </button>
+      {open && <div id={panelId}>{children}</div>}
     </section>
   );
 }
@@ -305,6 +454,32 @@ const styles: Record<string, React.CSSProperties> = {
     transform: 'rotate(180deg)',
     maxHeight: 62,
   },
+  accordionHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 4,
+    width: '100%',
+    padding: '4px 0 6px',
+    border: 'none',
+    background: 'none',
+    cursor: 'pointer',
+    fontSize: 11,
+    fontWeight: 600,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+    color: 'var(--muted)',
+    textAlign: 'left',
+  },
+  chevron: { width: 10, fontSize: 10 },
+  accordionSummary: {
+    textTransform: 'none',
+    letterSpacing: 0,
+    fontWeight: 400,
+    color: 'var(--accent)',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  },
   sectionTitle: {
     fontSize: 11,
     fontWeight: 600,
@@ -320,7 +495,7 @@ const styles: Record<string, React.CSSProperties> = {
     height: 30,
     padding: '0 6px',
     fontSize: 14,
-    background: '#fff',
+    background: 'var(--surface)',
     border: '1px solid var(--border)',
     borderRadius: 6,
     cursor: 'pointer',

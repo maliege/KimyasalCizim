@@ -4,19 +4,34 @@ import { cleanupCoords, molblockFromSmiles } from '../rdkit/RdkitService';
 import { useRdkit } from '../rdkit/useRdkit';
 import type { Molecule } from '../model/types';
 import ExampleGallery from './ExampleGallery';
+import { resolveThemeVars } from '../render/theme';
+import { buildShareUrl } from '../editor/shareLink';
+import { findLocalName, looksLikeSmiles } from '../model/localNames';
+import { PubChemError, compoundUrl, lookupPubChem } from '../net/pubchem';
+
+/** PubChem yavas yanit verirse arayuz sonsuza dek beklemesin. */
+const LOOKUP_TIMEOUT_MS = 12_000;
 
 type Props = {
   molecule: Molecule;
+  /** RDKit'in kanonik SMILES'i; yoksa (bos ya da gecersiz yapi) paylasim kapali */
+  smiles?: string | null;
   onImport: (molecule: Molecule) => void;
   svgRef: React.RefObject<SVGSVGElement | null>;
 };
 
-export default function ExportBar({ molecule, onImport, svgRef }: Props) {
+export default function ExportBar({ molecule, smiles: currentSmiles, onImport, svgRef }: Props) {
   const { status, rdkit } = useRdkit();
   const fileRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [smiles, setSmiles] = useState('');
   const [galleryOpen, setGalleryOpen] = useState(false);
+  /** Son aramanin nereden cozuldugu — hangi yorumun secildigi gorunsun. */
+  const [found, setFound] = useState<{ text: string; url?: string } | null>(null);
+  const [searching, setSearching] = useState(false);
+  /** Suren PubChem aramasi; yeni arama eskisini iptal eder. */
+  const lookupRef = useRef<AbortController | null>(null);
+  const [shared, setShared] = useState<'kopyalandi' | 'paylasildi' | null>(null);
   const empty = molecule.atoms.length === 0;
 
   /** Tuvalin merkezi — iceri aktarilan yapiyi oraya oturtuyoruz. */
@@ -41,9 +56,97 @@ export default function ExportBar({ molecule, onImport, svgRef }: Props) {
     return true;
   }
 
-  function handleSmiles() {
+  /**
+   * Paylasim baglantisi: telefonda isletim sisteminin paylasim penceresi
+   * (WhatsApp, e-posta…), masaustunde panoya kopyalama. Masaustu tarayicilarin
+   * cogu da navigator.share sunuyor ama orada kullanicinin bekledigi pano.
+   */
+  async function handleShare() {
+    if (!currentSmiles) return;
+    const url = buildShareUrl(window.location.href, currentSmiles);
+    const touch = window.matchMedia('(pointer: coarse)').matches;
+    try {
+      if (touch && navigator.share) {
+        await navigator.share({ title: 'KimyasalÇizim', url });
+        setShared('paylasildi');
+      } else {
+        await navigator.clipboard.writeText(url);
+        setShared('kopyalandi');
+      }
+      setError(null);
+    } catch (err) {
+      // Kullanici paylasim penceresini kapattiysa hata degil.
+      if (err instanceof DOMException && err.name === 'AbortError') return;
+      setError('Bağlantı kopyalanamadı: ' + url);
+    }
+    setTimeout(() => setShared(null), 2000);
+  }
+
+  /**
+   * Kutudaki girdiyi yapiya cevirir, sirasiyla:
+   * 1) yerel Turkce ad (galeri + alistirmalar) — agsiz, aninda
+   * 2) SMILES
+   * 3) PubChem'de ad (Ingilizce)
+   */
+  async function handleSmiles() {
     const input = smiles.trim();
-    if (input && loadSmiles(input)) setSmiles('');
+    if (!input) return;
+    lookupRef.current?.abort();
+    setFound(null);
+    setError(null);
+    if (status !== 'ready') {
+      setError('Kimya motoru henüz hazır değil.');
+      return;
+    }
+
+    const local = findLocalName(input);
+    if (local) {
+      if (loadSmiles(local.smiles)) {
+        setSmiles('');
+        setFound({ text: `${local.name} — yerel listeden` });
+      }
+      return;
+    }
+
+    if (looksLikeSmiles(input) && molblockFromSmiles(rdkit, input)) {
+      if (loadSmiles(input)) setSmiles('');
+      return;
+    }
+
+    const controller = new AbortController();
+    lookupRef.current = controller;
+    const timer = setTimeout(() => controller.abort(), LOOKUP_TIMEOUT_MS);
+    setSearching(true);
+    try {
+      const hit = await lookupPubChem(input, { signal: controller.signal });
+      if (!hit) {
+        setError(
+          `“${input}” bulunamadı. PubChem İngilizce adla arar: örneğin morfin yerine morphine deneyin.`,
+        );
+        return;
+      }
+      if (loadSmiles(hit.smiles)) {
+        setSmiles('');
+        setFound({ text: `PubChem: ${hit.title ?? input}`, url: compoundUrl(hit.cid) });
+      }
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        // Yeni bir arama bunu iptal ettiyse sessiz kal; zaman asimiysa soyle.
+        if (lookupRef.current === controller) setError('PubChem zaman aşımına uğradı.');
+        return;
+      }
+      setError(
+        err instanceof PubChemError
+          ? `${err.message} Çevrimdışıysanız yapıyı SMILES ile girebilirsiniz.`
+          : 'Arama başarısız oldu.',
+      );
+    } finally {
+      clearTimeout(timer);
+      if (lookupRef.current === controller) {
+        lookupRef.current = null;
+        setSearching(false);
+      }
+    }
   }
 
   function handleCleanup() {
@@ -126,6 +229,15 @@ export default function ExportBar({ molecule, onImport, svgRef }: Props) {
         >
           Örnekler
         </button>
+        <button
+          type="button"
+          style={styles.button}
+          disabled={!currentSmiles}
+          title="Bu yapıyı açan bir bağlantı üret"
+          onClick={() => void handleShare()}
+        >
+          {shared === 'kopyalandi' ? '✓ Kopyalandı' : shared === 'paylasildi' ? '✓ Paylaşıldı' : '🔗 Bağlantı'}
+        </button>
       </div>
 
       {galleryOpen && (
@@ -153,24 +265,38 @@ export default function ExportBar({ molecule, onImport, svgRef }: Props) {
         <input
           type="text"
           value={smiles}
-          placeholder="SMILES yapıştır…"
+          placeholder="SMILES ya da ad (kafein, morphine…)"
+          title="Türkçe adlar yerel listeden bulunur; diğerleri PubChem'de İngilizce adla aranır (aranan ad NCBI'ye gönderilir)."
           spellCheck={false}
           style={styles.smilesInput}
           onChange={(e) => setSmiles(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === 'Enter') handleSmiles();
+            if (e.key === 'Enter') void handleSmiles();
           }}
         />
         <button
           type="button"
           style={styles.button}
           disabled={!smiles.trim()}
-          title="SMILES'ten yapı oluştur (tuvaldekinin yerine geçer)"
-          onClick={handleSmiles}
+          title="Yapıyı bul ve çiz (tuvaldekinin yerine geçer)"
+          onClick={() => void handleSmiles()}
         >
-          Çiz
+          {searching ? 'Aranıyor…' : 'Çiz'}
         </button>
       </div>
+
+      {found && (
+        <p style={styles.found}>
+          ✓{' '}
+          {found.url ? (
+            <a href={found.url} target="_blank" rel="noopener noreferrer" style={styles.link}>
+              {found.text}
+            </a>
+          ) : (
+            found.text
+          )}
+        </p>
+      )}
 
       {error && <p style={styles.error}>{error}</p>}
     </div>
@@ -182,6 +308,17 @@ export default function ExportBar({ molecule, onImport, svgRef }: Props) {
 function serializeSvg(svg: SVGSVGElement): string {
   const clone = svg.cloneNode(true) as SVGSVGElement;
   // CSS degiskenleri disa aktarilan dosyada cozulmez; sabit renge cevir.
+  // 1) Icerik renkleri: var(--ad, yedek) → yedek. Belgeye giden gorsel her
+  //    zaman acik tema olur (beyaz zemin, koyu murekkep), ekranda hangi tema
+  //    acik olursa olsun.
+  for (const node of [clone, ...clone.querySelectorAll('*')]) {
+    for (const attr of ['stroke', 'fill', 'style']) {
+      const value = node.getAttribute(attr);
+      if (value?.includes('var(')) node.setAttribute(attr, resolveThemeVars(value));
+    }
+  }
+  // 2) Geriye kalan yedeksiz var(--ad) ifadeleri arayuz katmanidir (secim,
+  //    vurgu, onizleme): gorselden cikarilir.
   clone.querySelectorAll('[stroke^="var("], [fill^="var("]').forEach((node) => node.remove());
   clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
   return new XMLSerializer().serializeToString(clone);
@@ -251,11 +388,13 @@ const styles: Record<string, React.CSSProperties> = {
   button: {
     fontSize: 11,
     padding: '4px 8px',
-    background: '#fff',
+    background: 'var(--surface)',
     border: '1px solid var(--border)',
     borderRadius: 6,
     cursor: 'pointer',
     color: 'var(--text)',
   },
+  found: { fontSize: 11, color: 'var(--muted)', margin: '4px 0 0' },
+  link: { color: 'var(--accent)' },
   error: { fontSize: 11, color: 'var(--danger)', marginTop: 6, lineHeight: 1.4 },
 };
